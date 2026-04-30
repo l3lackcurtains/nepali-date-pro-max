@@ -49,7 +49,6 @@ import {
   bsDayOfYear,
   bsToAd,
   bsWeekday,
-  fromJsDate,
 } from "./convert.js";
 import {
   BS_YEAR_DATA,
