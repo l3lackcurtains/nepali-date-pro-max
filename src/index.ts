@@ -87,10 +87,13 @@ export { parseBs } from "./parse.js";
 export {
   getGlobalLocale,
   getLocale,
+  getMonthNames,
+  getWeekdayNames,
   hasLocale,
   type Locale,
   type LocaleRelativeTime,
   listLocales,
+  localizeDigits,
   registerLocale,
   setGlobalLocale,
 } from "./locale.js";

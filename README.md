@@ -213,6 +213,17 @@ NepaliDate.now().locale("ne-rom").format("DD MMMM YYYY (dddd)");
 | `registerLocale(locale)` | Add a custom locale to the registry |
 | `getLocale(name)` / `hasLocale(name)` / `listLocales()` | Inspect the registry |
 | `getGlobalLocale()` / `setGlobalLocale(name)` | Functional equivalents of `NepaliDate.locale()` |
+| `getMonthNames(locale?, length?)` | 12 BS month names — `"long"` (default) or `"short"` *(2.0.1+)* |
+| `getWeekdayNames(locale?, length?)` | 7 weekday names — `"long"` / `"short"` / `"min"` *(2.0.1+)* |
+| `localizeDigits(value, locale?)` | Render a number/string in the locale's numeral system *(2.0.1+)* |
+
+```ts
+import { getMonthNames, getWeekdayNames, localizeDigits } from "nepali-date-pro-max";
+
+getMonthNames("ne");           // ["बैशाख", "जेठ", "असार", …]
+getWeekdayNames("en", "min");  // ["Su", "Mo", "Tu", …]
+localizeDigits(2081, "ne");    // "२०८१"
+```
 
 > `format()`, the calendar functions, the distance/relative formatters, and `formatFiscalYear` all accept a one-off `{ locale: "ne" }` (or a `Locale` object) which always wins over the instance/global default.
 
@@ -268,13 +279,20 @@ export function NepaliCalendar({ year, month }: { year: number; month: number })
   weekday: 6,                         // 0=Sun..6=Sat
   weekdayName: "Saturday",
   weekdayNameNepali: "शनिबार",
-  bsDay: 1, bsDayNepali: "१", adDay: 13,
+  bsDay: 1,
+  bsDayNepali: "१",                   // always Devanagari
+  bsDayLocalized: "1",                // active locale's digits (2.0.1+)
+  adDay: 13,
+  adMonthName: "April",               // English Gregorian (2.0.1+)
+  adMonthNameShort: "Apr",            // English Gregorian (2.0.1+)
   isCurrentMonth: true,               // false = adjacent-month padding
   isToday: false,
   isSaturday: true, isSunday: false, isWeekend: true,
   date: NepaliDate { … }              // for click-handlers etc.
 }
 ```
+
+`CalendarMonth` itself also exposes `yearLocalized` (active-locale digits) alongside the existing `yearNepali` (always Devanagari) and `year` (number).
 
 ### Options
 

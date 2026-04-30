@@ -4,8 +4,11 @@ import {
   getCalendarMonth,
   getGlobalLocale,
   getLocale,
+  getMonthNames,
+  getWeekdayNames,
   hasLocale,
   listLocales,
+  localizeDigits,
   NepaliDate,
   registerLocale,
   setGlobalLocale,
@@ -172,6 +175,55 @@ describe("NepaliDate#locale (instance)", () => {
   it("toString stays ASCII regardless of locale", () => {
     setGlobalLocale("ne");
     expect(NepaliDate.fromBs(2081, 1, 1).toString()).toBe("2081-01-01");
+  });
+});
+
+describe("getMonthNames / getWeekdayNames / localizeDigits", () => {
+  afterEach(() => setGlobalLocale("en"));
+
+  it("getMonthNames returns 12 names per locale and length", () => {
+    expect(getMonthNames("en")).toHaveLength(12);
+    expect(getMonthNames("en")[0]).toBe("Baishakh");
+    expect(getMonthNames("ne")[0]).toBe("बैशाख");
+    expect(getMonthNames("en", "short")[0]).toBe("Bai");
+  });
+
+  it("getMonthNames defaults to global locale when no name passed", () => {
+    setGlobalLocale("ne");
+    expect(getMonthNames()[0]).toBe("बैशाख");
+  });
+
+  it("getWeekdayNames returns 7 names with all three lengths", () => {
+    expect(getWeekdayNames("en")).toHaveLength(7);
+    expect(getWeekdayNames("en")[0]).toBe("Sunday");
+    expect(getWeekdayNames("en", "short")[0]).toBe("Sun");
+    expect(getWeekdayNames("en", "min")[0]).toBe("Su");
+    expect(getWeekdayNames("ne")[0]).toBe("आइतबार");
+    expect(getWeekdayNames("ne", "short")[0]).toBe("आइत");
+  });
+
+  it("localizeDigits delegates to the locale's digits()", () => {
+    expect(localizeDigits(2081, "en")).toBe("2081");
+    expect(localizeDigits(2081, "ne")).toBe("२०८१");
+    expect(localizeDigits("2081-01-15", "ne")).toBe("२०८१-०१-१५");
+  });
+
+  it("localizeDigits defaults to global locale", () => {
+    setGlobalLocale("ne");
+    expect(localizeDigits(7)).toBe("७");
+  });
+
+  it("helpers accept a Locale object directly", () => {
+    const ne = getLocale("ne");
+    expect(getMonthNames(ne)[0]).toBe("बैशाख");
+    expect(getWeekdayNames(ne)[6]).toBe("शनिबार");
+    expect(localizeDigits(15, ne)).toBe("१५");
+  });
+
+  it("helpers throw on unknown locale name", () => {
+    expect(() => getMonthNames("zz")).toThrow(/Unknown locale/);
+    expect(() => getWeekdayNames("zz")).toThrow(/Unknown locale/);
+    expect(() => localizeDigits(1, "zz")).toThrow(/Unknown locale/);
   });
 });
 

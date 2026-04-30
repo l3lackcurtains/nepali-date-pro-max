@@ -264,3 +264,65 @@ export function setGlobalLocale(name: string): void {
 export function resolveGlobalLocale(): Locale {
   return getLocale(globalLocaleName);
 }
+
+/** Internal: accept either a name string or a `Locale` object; default to global. */
+function resolveLocaleArg(locale?: string | Locale): Locale {
+  if (locale === undefined) return resolveGlobalLocale();
+  return typeof locale === "string" ? getLocale(locale) : locale;
+}
+
+/**
+ * BS month names in the given locale.
+ *
+ * `length` defaults to `"long"`. Pass `"short"` for the abbreviated set.
+ *
+ * @example
+ * getMonthNames("ne");           // ["बैशाख", "जेठ", …]
+ * getMonthNames("en", "short");  // ["Bai", "Jes", …]
+ */
+export function getMonthNames(
+  locale?: string | Locale,
+  length: "long" | "short" = "long",
+): readonly string[] {
+  const loc = resolveLocaleArg(locale);
+  return length === "short" ? loc.monthsShort : loc.months;
+}
+
+/**
+ * Weekday names in the given locale, ordered Sun..Sat.
+ *
+ * `length` defaults to `"long"`. Use `"short"` for the abbreviated set,
+ * `"min"` for minimum-width labels (compact calendar headers).
+ *
+ * @example
+ * getWeekdayNames("ne");            // ["आइतबार", "सोमबार", …]
+ * getWeekdayNames("en", "short");   // ["Sun", "Mon", …]
+ * getWeekdayNames("en", "min");     // ["Su", "Mo", …]
+ */
+export function getWeekdayNames(
+  locale?: string | Locale,
+  length: "long" | "short" | "min" = "long",
+): readonly string[] {
+  const loc = resolveLocaleArg(locale);
+  if (length === "short") return loc.weekdaysShort;
+  if (length === "min") return loc.weekdaysMin;
+  return loc.weekdays;
+}
+
+/**
+ * Render a number/string in the given locale's numeral system.
+ *
+ * Identity for `"en"` (ASCII digits), Devanagari for `"ne"`. Custom locales
+ * use the `digits` function they registered.
+ *
+ * @example
+ * localizeDigits(2081, "ne");           // "२०८१"
+ * localizeDigits("2081-01-15", "ne");   // "२०८१-०१-१५"
+ * localizeDigits(2081, "en");           // "2081"
+ */
+export function localizeDigits(
+  value: number | string,
+  locale?: string | Locale,
+): string {
+  return resolveLocaleArg(locale).digits(value);
+}

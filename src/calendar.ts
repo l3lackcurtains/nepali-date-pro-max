@@ -40,6 +40,8 @@
  */
 
 import {
+  AD_MONTH_NAMES,
+  AD_MONTH_NAMES_SHORT,
   BS_MONTH_NAMES_NP,
   toDevanagariDigits,
   WEEKDAY_NAMES,
@@ -70,8 +72,17 @@ export interface CalendarDayCell {
   bsDay: number;
   /** BS day-of-month in Devanagari (e.g. `"१"`, `"१५"`). */
   bsDayNepali: string;
+  /**
+   * BS day-of-month rendered in the active locale's numeral system.
+   * Equivalent to `bsDay` for `"en"`; equivalent to `bsDayNepali` for `"ne"`.
+   */
+  bsDayLocalized: string;
   /** AD day-of-month (e.g. `13`). */
   adDay: number;
+  /** Full English Gregorian month name (e.g. `"April"`). */
+  adMonthName: string;
+  /** Short English Gregorian month name (e.g. `"Apr"`). */
+  adMonthNameShort: string;
 
   /** `false` for adjacent-month padding cells, `true` otherwise. */
   isCurrentMonth: boolean;
@@ -108,6 +119,11 @@ export interface CalendarMonth {
   year: number;
   /** BS year in Devanagari (e.g. "२०८१"). */
   yearNepali: string;
+  /**
+   * BS year rendered in the active locale's numeral system.
+   * `"2081"` for `"en"`, `"२०८१"` for `"ne"`.
+   */
+  yearLocalized: string;
   /** BS month, 1..12. */
   month: number;
   /** "Baishakh" … "Chaitra". */
@@ -229,7 +245,7 @@ export function getCalendarMonth(
   if (padding) {
     for (let i = leadingPad; i > 0; i--) {
       const d = firstDay.addDays(-i);
-      cells.push(buildCell(d, false, today, weekendDays));
+      cells.push(buildCell(d, false, today, weekendDays, loc));
     }
   } else {
     // emit empty placeholder cells via current month entry — handled below
@@ -241,7 +257,7 @@ export function getCalendarMonth(
   // Current month days
   for (let d = 1; d <= dim; d++) {
     const date = NepaliDate.fromBs(year, month, d);
-    cells.push(buildCell(date, true, today, weekendDays));
+    cells.push(buildCell(date, true, today, weekendDays, loc));
   }
 
   // Trailing days — fill until we have a multiple of 7
@@ -251,7 +267,7 @@ export function getCalendarMonth(
     for (let i = 1; i <= need; i++) {
       if (padding) {
         const d = lastDay.addDays(i);
-        cells.push(buildCell(d, false, today, weekendDays));
+        cells.push(buildCell(d, false, today, weekendDays, loc));
       } else {
         cells.push(EMPTY_CELL);
       }
@@ -280,6 +296,7 @@ export function getCalendarMonth(
   return {
     year,
     yearNepali: toDevanagariDigits(year),
+    yearLocalized: loc.digits(year),
     month,
     monthName: loc.months[month - 1]!,
     monthNameNepali: BS_MONTH_NAMES_NP[month - 1]!,
@@ -306,7 +323,10 @@ const EMPTY_CELL: CalendarDayCell = Object.freeze({
   weekdayNameNepali: "",
   bsDay: 0,
   bsDayNepali: "",
+  bsDayLocalized: "",
   adDay: 0,
+  adMonthName: "",
+  adMonthNameShort: "",
   isCurrentMonth: false,
   isToday: false,
   isSaturday: false,
@@ -320,6 +340,7 @@ function buildCell(
   isCurrentMonth: boolean,
   today: NepaliDate,
   weekendDays: readonly number[],
+  loc: Locale,
 ): CalendarDayCell {
   const bs = date.toBs();
   const ad = date.toAd();
@@ -332,7 +353,10 @@ function buildCell(
     weekdayNameNepali: WEEKDAY_NAMES_NP[weekday]!,
     bsDay: bs.day,
     bsDayNepali: toDevanagariDigits(bs.day),
+    bsDayLocalized: loc.digits(bs.day),
     adDay: ad.day,
+    adMonthName: AD_MONTH_NAMES[ad.month - 1]!,
+    adMonthNameShort: AD_MONTH_NAMES_SHORT[ad.month - 1]!,
     isCurrentMonth,
     isToday: date.isSameDay(today),
     isSaturday: weekday === 6,
@@ -369,13 +393,23 @@ export function getCalendarYear(
  */
 export function getCalendarDay(
   date: NepaliDate,
-  options: { today?: NepaliDate; weekendDays?: readonly number[] } = {},
+  options: {
+    today?: NepaliDate;
+    weekendDays?: readonly number[];
+    locale?: string | Locale;
+  } = {},
 ): CalendarDayCell {
+  const loc: Locale = options.locale === undefined
+    ? resolveGlobalLocale()
+    : typeof options.locale === "string"
+      ? getLocale(options.locale)
+      : options.locale;
   return buildCell(
     date,
     true,
     options.today ?? NepaliDate.now(),
     options.weekendDays ?? [6],
+    loc,
   );
 }
 

@@ -1,5 +1,27 @@
 # Changelog
 
+## 2.0.1 — Locale-data convenience + richer calendar cells (additive)
+
+> **Why:** consumers building bilingual calendar UIs were reaching into `getLocale("ne").months` and re-implementing per-cell digit conversion / AD month formatting on top of `getCalendarMonth`. Both have always been computable from existing primitives; this release exposes them directly.
+
+### Added
+
+- **Top-level locale-data helpers** — accept a locale name string or `Locale` object, default to the global locale:
+  - `getMonthNames(locale?, length?: "long" | "short")` → 12-string array
+  - `getWeekdayNames(locale?, length?: "long" | "short" | "min")` → 7-string array
+  - `localizeDigits(value, locale?)` → numeric string in the locale's numeral system
+- **`CalendarDayCell.bsDayLocalized`** — BS day in the *active locale's* digit system. (`bsDayNepali` is unchanged: always Devanagari.)
+- **`CalendarDayCell.adMonthName`** + **`adMonthNameShort`** — full + short English Gregorian month name on every cell, so consumers can render an AD-month chip (e.g. `"Apr 13"`) without a separate `format()` pass.
+- **`CalendarMonth.yearLocalized`** — BS year in the active locale's digit system. (`yearNepali` is unchanged: always Devanagari.)
+- **`getCalendarDay(date, options)`** now accepts `options.locale`.
+- **10 new tests** covering the helpers and the new cell/month fields.
+
+### Changed
+
+Nothing breaking. All previously documented field shapes and function signatures are preserved; new fields are additive on the existing objects.
+
+---
+
 ## 2.0.0 — Day.js-style locale system (BREAKING)
 
 > **Why:** the locale story was inconsistent across the API — some functions had a `nepali: true` flag, others had `*Nepali` siblings, and the `NepaliDate` class shipped both `format()` + `formatNepali()` plus `getMonthName()` + `getMonthNameNepali()`. Day.js solves this with a single locale registry and a chainable `.locale()` setter, and that's what the library now uses everywhere. Released only hours after `1.0.0`, so the cleanup ships as a hard break rather than a deprecation tail.

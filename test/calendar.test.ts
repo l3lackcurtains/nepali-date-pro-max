@@ -116,6 +116,37 @@ describe("getCalendarMonth", () => {
     expect(day1.ad.month).toBe(4);
   });
 
+  it("provides AD month name on every cell", () => {
+    const cal = getCalendarMonth(2081, 1);
+    const day1 = flattenCalendarMonth(cal).find(
+      (c) => c.isCurrentMonth && c.bsDay === 1,
+    )!;
+    expect(day1.adMonthName).toBe("April");
+    expect(day1.adMonthNameShort).toBe("Apr");
+  });
+
+  it("provides bsDayLocalized matching the active locale", () => {
+    const en = getCalendarMonth(2081, 1, { locale: "en" });
+    const ne = getCalendarMonth(2081, 1, { locale: "ne" });
+    const enDay15 = flattenCalendarMonth(en).find(
+      (c) => c.isCurrentMonth && c.bsDay === 15,
+    )!;
+    const neDay15 = flattenCalendarMonth(ne).find(
+      (c) => c.isCurrentMonth && c.bsDay === 15,
+    )!;
+    expect(enDay15.bsDayLocalized).toBe("15");
+    expect(neDay15.bsDayLocalized).toBe("१५");
+    // bsDayNepali stays Devanagari regardless of locale (unchanged behavior)
+    expect(enDay15.bsDayNepali).toBe("१५");
+  });
+
+  it("provides yearLocalized on the month object", () => {
+    expect(getCalendarMonth(2081, 1, { locale: "en" }).yearLocalized).toBe("2081");
+    expect(getCalendarMonth(2081, 1, { locale: "ne" }).yearLocalized).toBe("२०८१");
+    // yearNepali stays Devanagari regardless of locale (unchanged behavior)
+    expect(getCalendarMonth(2081, 1, { locale: "en" }).yearNepali).toBe("२०८१");
+  });
+
   it("respects weekStartsOn for header order", () => {
     const cal = getCalendarMonth(2081, 1, { weekStartsOn: 1 });
     expect(cal.weekdayHeaders[0]).toBe("Monday");
