@@ -205,12 +205,16 @@ export {
   startOfFiscalYear,
 } from "./fiscal.js";
 
-// ---------- Distance / relative ----------
+// ---------- Distance / relative (separate functions per language; no options) ----------
 export {
-  type DistanceOptions,
+  type DateInput,
   formatDistance,
+  formatDistanceNepali,
   formatDistanceToNow,
+  formatDistanceToNowNepali,
   formatRelative,
+  formatRelativeNepali,
+  toNepaliDate,
 } from "./distance.js";
 
 // ---------- min/max/clamp/closestTo ----------

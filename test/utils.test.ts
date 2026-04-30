@@ -25,6 +25,10 @@ import {
   endOfFiscalYear,
   endOfWeek,
   formatDistance,
+  formatDistanceNepali,
+  formatDistanceToNow,
+  formatDistanceToNowNepali,
+  formatRelativeNepali,
   formatFiscalYear,
   formatRelative,
   getFiscalQuarter,
@@ -340,28 +344,117 @@ describe("fiscal year", () => {
   });
 });
 
-describe("formatDistance / formatRelative", () => {
-  it("English duration without suffix", () => {
+describe("formatDistance — pure duration, no suffix", () => {
+  it("English between two NepaliDates", () => {
     const a = NepaliDate.fromBs(2081, 1, 1);
     const b = NepaliDate.fromBs(2081, 1, 6);
     expect(formatDistance(b, a)).toBe("5 days");
+    expect(formatDistance(a, b)).toBe("5 days"); // unsigned
   });
-  it("with addSuffix", () => {
-    const now = NepaliDate.now();
-    const past = now.addDays(-3);
-    expect(formatDistance(past, now, { addSuffix: true })).toMatch(/ago$/);
-  });
-  it("Nepali locale", () => {
+
+  it("Nepali (Devanagari)", () => {
     const a = NepaliDate.fromBs(2081, 1, 1);
     const b = NepaliDate.fromBs(2081, 1, 6);
-    expect(formatDistance(b, a, { locale: "ne" })).toBe("५ दिन");
+    expect(formatDistanceNepali(b, a)).toBe("५ दिन");
   });
-  it("formatRelative yesterday/today/tomorrow", () => {
+
+  it("never includes a suffix", () => {
+    const now = NepaliDate.now();
+    expect(formatDistance(now.addDays(-3), now)).not.toMatch(/ago/);
+    expect(formatDistance(now, now.addDays(3))).not.toMatch(/in /);
+  });
+});
+
+describe("formatDistance — polymorphic inputs", () => {
+  it("accepts ms timestamp numbers", () => {
+    const now = Date.now();
+    expect(formatDistance(now - 5 * 60_000, now)).toBe("5 minutes");
+  });
+
+  it("accepts JS Date objects", () => {
+    const a = new Date("2024-04-13T00:00:00Z");
+    const b = new Date("2024-04-20T00:00:00Z");
+    expect(formatDistance(a, b)).toBe("7 days");
+  });
+
+  it("accepts ISO date strings (Gregorian)", () => {
+    expect(formatDistance("2024-04-13", "2024-04-20")).toBe("7 days");
+    expect(formatDistanceNepali("2024-04-13", "2024-04-20")).toBe("७ दिन");
+  });
+
+  it("accepts mixed input types", () => {
+    const ms = Date.UTC(2024, 3, 13);
+    expect(formatDistance(ms, "2024-04-20")).toBe("7 days");
+    expect(
+      formatDistance(
+        NepaliDate.fromAd(2024, 4, 13),
+        new Date("2024-04-20T00:00:00Z"),
+      ),
+    ).toBe("7 days");
+  });
+});
+
+describe("formatDistanceToNow — always includes ago/in suffix", () => {
+  it("English: past timestamp → 'X ago'", () => {
+    expect(formatDistanceToNow(Date.now() - 5 * 60_000)).toBe("5 minutes ago");
+  });
+
+  it("English: future timestamp → 'in X'", () => {
+    expect(formatDistanceToNow(Date.now() + 86_400_000)).toMatch(/^in /);
+  });
+
+  it("Nepali: past timestamp → 'X अघि'", () => {
+    expect(formatDistanceToNowNepali(Date.now() - 5 * 60_000)).toBe(
+      "५ मिनेट अघि",
+    );
+  });
+
+  it("Nepali: future timestamp → 'X पछि'", () => {
+    expect(formatDistanceToNowNepali(Date.now() + 86_400_000)).toMatch(/पछि$/);
+  });
+
+  it("works with JS Date and ISO string", () => {
+    expect(formatDistanceToNow(new Date(Date.now() - 5 * 60_000))).toBe(
+      "5 minutes ago",
+    );
+  });
+});
+
+describe("formatRelative — smart phrasing", () => {
+  it("English: yesterday/today/tomorrow", () => {
     const today = NepaliDate.now();
     expect(formatRelative(today)).toBe("today");
     expect(formatRelative(today.addDays(-1))).toBe("yesterday");
     expect(formatRelative(today.addDays(1))).toBe("tomorrow");
     expect(formatRelative(today.addDays(3))).toBe("in 3 days");
+  });
+
+  it("Nepali: हिजो / आज / भोलि / N दिनमा", () => {
+    const today = NepaliDate.now();
+    expect(formatRelativeNepali(today)).toBe("आज");
+    expect(formatRelativeNepali(today.addDays(-1))).toBe("हिजो");
+    expect(formatRelativeNepali(today.addDays(1))).toBe("भोलि");
+    expect(formatRelativeNepali(today.addDays(3))).toBe("३ दिनमा");
+  });
+
+  it("accepts a timestamp", () => {
+    expect(formatRelative(Date.now() - 86_400_000)).toBe("yesterday");
+  });
+});
+
+describe("Distance helpers reject invalid inputs", () => {
+  it("rejects a non-date string", () => {
+    expect(() => formatDistance("not a date", Date.now())).toThrow(
+      /cannot parse|invalid/i,
+    );
+  });
+  it("rejects NaN", () => {
+    expect(() => formatDistance(NaN, Date.now())).toThrow(/timestamp|invalid/i);
+  });
+  it("rejects an invalid Date", () => {
+    expect(() => formatDistance(new Date("invalid"), Date.now())).toThrow(
+      /invalid Date/i,
+    );
   });
 });
 
