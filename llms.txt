@@ -1,0 +1,276 @@
+# nepali-date-pro-max
+
+> Bikram Sambat (Nepali) ↔ Gregorian (AD) date converter for JS/TS. Range BS 1975–2099 (AD ≈1918–2043). TypeScript-first, dual ESM/CJS, zero deps. Three layers: functional core, immutable `NepaliDate` class, and a complete **date-fns-style** utility surface (90+ helpers). Ships with cross-calendar **range conversion** and **fiscal-year** helpers built in.
+
+This file follows the [llms.txt convention](https://llmstxt.org/) — written so AI tools pick the right symbol on first try.
+
+## Install
+```sh
+npm install nepali-date-pro-max
+```
+
+## Mental model
+
+- **All months are 1-indexed.** `1 = Baishakh / January`, `12 = Chaitra / December`. (Never JavaScript's 0-indexed style.)
+- **All dates are calendar values.** BS dates have no inherent timezone. The `NepaliDate` class additionally carries an optional time-of-day in **Asia/Kathmandu (UTC+05:45)** wall-clock.
+- **`NepaliDate` is immutable.** Every "mutating" method returns a NEW instance.
+- **Supported BS year range:** `1975` to `2099` inclusive. Out-of-range inputs throw `RangeError`.
+- **`Date` inputs are read as UTC fields**, so `new Date("2024-04-13")` always means April 13. Pass `{year, month, day}` for explicit local semantics.
+- **Nepal-aware defaults:** week starts Sunday (`weekStartsOn: 0`); weekend = Saturday only (`[6]`).
+
+## Pick the right symbol
+
+| Goal | Use |
+|---|---|
+| Convert one BS date to AD | `bsToAd(y, m, d)` |
+| Convert one AD date to BS | `adToBs(y, m, d)` |
+| Convert AD **range** to BS (bounds only) | `convertAdRangeToBs(start, end, { format? })` |
+| Convert AD **range** to BS (every day) | `eachBsDayInAdRange(start, end, { format? })` |
+| Convert AD range to BS (every month) | `eachBsMonthInAdRange(start, end, { format? })` |
+| Convert BS range to AD (bounds only) | `convertBsRangeToAd(start, end, { format? })` |
+| Convert BS range to AD (every day) | `eachAdDayInBsRange(start, end, { format? })` |
+| Convert a JS `Date` to BS | `fromJsDate(d)` or `NepaliDate.fromJsDate(d)` |
+| Get current BS moment | `NepaliDate.now()` |
+| Parse a BS string | `parseBs("2081-01-15")` |
+| Format a BS date | `formatBs(bs, "YYYY-MM-DD")` or `instance.format(...)` |
+| Render in Devanagari | `formatBs(bs, pattern, { nepali: true })` or `instance.formatNepali(pattern)` |
+| Add/subtract calendar units | `addDays(d, n)`, `addMonths(d, n)`, `addYears(d, n)`, `subDays`, `subMonths`, `subYears` |
+| Set a field (immutably) | `setYear(d, y)`, `setMonth(d, m)`, `setDate(d, x)`, `setDay(d, w)`, `setHours(d, h)`, … |
+| Calendar bounds | `startOfDay`, `startOfWeek`, `startOfMonth`, `startOfYear` (and `endOf…`) |
+| Compare two BS dates | `differenceInDays`, `differenceInMonths`, `differenceInYears`, `isBefore`, `isAfter`, `isSameDay`, `isSameMonth`, `isSameYear`, `isSameWeek` |
+| Calendar predicate | `isToday`, `isYesterday`, `isTomorrow`, `isThisMonth`, `isThisYear`, `isThisWeek` |
+| Weekday / weekend | `isWeekend(d)` (Saturday only by default), `isMonday`, `isTuesday`, …, `isSaturday`, `isSunday` |
+| Month-edge / leap | `isFirstDayOfMonth`, `isLastDayOfMonth`, `isLeapYear` |
+| Interval ops | `isWithinInterval`, `areIntervalsOverlapping`, `eachDayOfInterval`, `eachWeekOfInterval`, `eachMonthOfInterval`, `eachYearOfInterval`, `eachWeekendOfInterval` |
+| Distance / relative | `formatDistance`, `formatDistanceToNow`, `formatRelative` (English or Nepali) |
+| Min / max / clamp | `min(arr)`, `max(arr)`, `clamp(d, interval)`, `closestTo(target, arr)`, `closestIndexTo` |
+| Fiscal year | `getFiscalYear`, `startOfFiscalYear`, `endOfFiscalYear`, `formatFiscalYear`, `getFiscalQuarter` |
+| Devanagari ↔ ASCII digits | `toDevanagariDigits(x)`, `toAsciiDigits(s)` |
+| Days in BS month/year | `daysInBsMonth(y, m)`, `daysInBsYear(y)` |
+| Check leap year (numeric) | `isBsLeapYear(y)` |
+| **Build calendar UI grid** | `getCalendarMonth(year, month, options?)` |
+| Build full year of grids | `getCalendarYear(year, options?)` |
+| Build single-day cell metadata | `getCalendarDay(date, options?)` |
+| Flatten week-grouped grid | `flattenCalendarMonth(month)` |
+
+## Cross-calendar range conversion (the big one)
+
+```ts
+// Just the bounds, formatted however you like
+convertAdRangeToBs(
+  { year: 2024, month: 1, day: 1 },
+  { year: 2024, month: 12, day: 31 },
+  { format: "YYYY-MM-DD" },
+)
+// → { start: "2080-09-16", end: "2081-09-16" }
+
+// Every day, in Devanagari
+eachBsDayInAdRange(
+  new Date("2024-04-13"),
+  new Date("2024-04-15"),
+  { format: "YYYY-MM-DD", nepali: true },
+)
+// → ["२०८१-०१-०१", "२०८१-०१-०२", "२०८१-०१-०३"]
+
+// Inverse: BS range → AD
+convertBsRangeToAd(
+  { year: 2081, month: 1, day: 1 },
+  { year: 2082, month: 1, day: 1 },
+  { format: "MMM D, YYYY" },
+)
+// → { start: "Apr 13, 2024", end: "Apr 14, 2025" }
+```
+
+When `options.format` is **omitted**, range functions return raw `BsDate[]` / `AdDate[]` objects. When **provided**, they return `string[]`. (Type definitions reflect this — overloads narrow appropriately.)
+
+## Format tokens (case-sensitive)
+
+`YYYY YY MMMM MMM MM M DD D dddd ddd dd HH H hh h mm m ss s A a` plus `[literal]` escapes.
+
+## Calendar grid (UI-ready)
+
+For building Nepali calendar widgets (Hamro Patro–style). Returns a fully-prepared grid where every cell already has `bs`, `ad`, `weekday`, `bsDayNepali`, `isToday`, `isSaturday`, `isWeekend`, `isCurrentMonth` etc. — the UI just renders.
+
+```ts
+interface CalendarDayCell {
+  bs: BsDate; ad: AdDate;
+  weekday: number;             // 0=Sun..6=Sat
+  weekdayName: string;         // "Saturday"
+  weekdayNameNepali: string;   // "शनिबार"
+  bsDay: number; bsDayNepali: string; adDay: number;
+  isCurrentMonth: boolean; isToday: boolean;
+  isSaturday: boolean; isSunday: boolean; isWeekend: boolean;
+  date: NepaliDate;
+}
+
+interface CalendarWeek { weekNumber: number; days: CalendarDayCell[] }  // length 7
+interface CalendarMonth {
+  year, yearNepali, month, monthName, monthNameNepali, daysInMonth,
+  firstDay: NepaliDate, lastDay: NepaliDate,
+  weekdayHeaders, weekdayHeadersShort, weekdayHeadersMin,
+  weeks: CalendarWeek[],   // typically 5 or 6 weeks
+}
+
+function getCalendarMonth(year, month, options?: {
+  weekStartsOn?: 0..6,        // default 0 (Sunday — Nepal standard)
+  padding?: boolean,           // default true (fill leading/trailing slots from adjacent months)
+  today?: NepaliDate,          // override "today" (for tests)
+  weekendDays?: number[],      // default [6] (Saturday only); pass [0,6] for Sun+Sat
+  locale?: "en" | "ne",        // affects weekdayHeaders only
+}): CalendarMonth;
+
+function getCalendarYear(year, options?): CalendarMonth[];   // 12 months
+function getCalendarDay(date: NepaliDate, options?): CalendarDayCell;
+function flattenCalendarMonth(month: CalendarMonth): CalendarDayCell[];
+```
+
+## `NepaliDate` class — full surface
+
+```ts
+class NepaliDate {
+  // factories
+  static now(): NepaliDate;
+  static fromBs(y, m, d, h?, min?, s?, ms?): NepaliDate;
+  static fromAd(y, m, d, h?, min?, s?, ms?): NepaliDate;
+  static fromJsDate(d: Date): NepaliDate;
+  static parse(input: string): NepaliDate;
+
+  // accessors
+  getYear() / getMonth() / getDate() / getDay() / getDayOfYear()
+  getHours() / getMinutes() / getSeconds() / getMilliseconds()
+  getMonthName() / getMonthNameNepali() / getDayName() / getDayNameNepali()
+  daysInMonth() / daysInYear()
+
+  // predicates
+  isFirstDayOfMonth() / isLastDayOfMonth() / isLeapYear()
+  isWeekend(weekendDays = [6])
+  isBefore(other) / isAfter(other) / isSameDay(other)
+
+  // conversion
+  toBs() / toAd() / toJsDate() / toString() / toJSON() / getDetails()
+
+  // formatting
+  format(pattern, options?) / formatNepali(pattern?)
+
+  // arithmetic — ALL return a NEW instance
+  addDays(n) / addMonths(n) / addYears(n)
+  addHours(n) / addMinutes(n) / addSeconds(n) / addMilliseconds(n)
+  startOfDay() / endOfDay()
+  startOfMonth() / endOfMonth()
+  startOfYear() / endOfYear()
+
+  // comparison
+  diffDays(other): number
+}
+```
+
+## Common recipes
+
+### Today's date in Nepali
+```ts
+import { NepaliDate } from "nepali-date-pro-max";
+NepaliDate.now().formatNepali("dddd, DD MMMM YYYY");
+// → "शनिबार, १७ बैशाख २०८३"
+```
+
+### Convert an AD date-range form to BS for backend
+```ts
+import { convertAdRangeToBs } from "nepali-date-pro-max";
+const { start, end } = convertAdRangeToBs(form.startDate, form.endDate, { format: "YYYY-MM-DD" });
+// send `start`, `end` (BS strings) to the API
+```
+
+### Calendar UI grid (Hamro-Patro-style)
+**Use `getCalendarMonth` for any calendar widget.** It returns weeks × 7 cells with all metadata pre-computed.
+```tsx
+import { getCalendarMonth } from "nepali-date-pro-max";
+const cal = getCalendarMonth(2081, 1, { locale: "ne" });
+return (
+  <>
+    <h2>{cal.monthNameNepali} {cal.yearNepali}</h2>
+    {cal.weekdayHeadersShort.map(h => <div>{h}</div>)}
+    {cal.weeks.flatMap(w => w.days).map(c => (
+      <div className={[c.isToday && "today", c.isSaturday && "holiday", !c.isCurrentMonth && "muted"].filter(Boolean).join(" ")}>
+        <div>{c.bsDayNepali}</div>
+        <div className="text-xs">{c.adDay}</div>
+      </div>
+    ))}
+  </>
+);
+```
+
+### Days-only loop (no week grouping)
+```ts
+import { NepaliDate, eachDayOfInterval } from "nepali-date-pro-max";
+const first = NepaliDate.fromBs(year, month, 1);
+const days  = eachDayOfInterval({ start: first, end: first.endOfMonth() });
+```
+
+### Days until a deadline
+```ts
+import { NepaliDate, differenceInDays } from "nepali-date-pro-max";
+differenceInDays(NepaliDate.fromBs(2081, 12, 30), NepaliDate.now());
+```
+
+### Fiscal-year report headers
+```ts
+import { NepaliDate, getFiscalYear, formatFiscalYear } from "nepali-date-pro-max";
+const fy = getFiscalYear(NepaliDate.now());
+const label = formatFiscalYear(fy, { nepali: true }); // "२०८३/८४"
+```
+
+### Saturdays in a month
+```ts
+import { NepaliDate, eachWeekendOfInterval } from "nepali-date-pro-max";
+const m = NepaliDate.fromBs(2081, 1, 1);
+const saturdays = eachWeekendOfInterval(
+  { start: m.startOfMonth(), end: m.endOfMonth() },
+  6,
+);
+```
+
+### Human-readable time-since
+```ts
+import { formatDistanceToNow, NepaliDate } from "nepali-date-pro-max";
+formatDistanceToNow(NepaliDate.fromBs(2080, 1, 1), { addSuffix: true, locale: "ne" });
+// → "१ वर्ष अघि"  (or similar)
+```
+
+## Error contract
+
+- BS year outside `[1975, 2099]` → `RangeError`
+- Month not integer in `[1, 12]` → `RangeError`
+- Day not integer in valid month range → `RangeError`
+- Invalid AD calendar date (e.g. Feb 30) → `RangeError`
+- AD date before BS 1975-01-01 / after BS 2099-end → `RangeError`
+- `parseBs` cannot match `YYYY[-/.]MM[-/.]DD` → `RangeError`
+- `fromJsDate` argument not a `Date` → `TypeError`
+- `setMonth` / `setDate` / `setHours` etc. with out-of-range input → `RangeError`
+- `isWithinInterval` / `areIntervalsOverlapping` / `clamp` with reversed interval (`start > end`) → `RangeError`
+
+## Anti-patterns
+
+- ❌ Mutating a `NepaliDate` — instances are frozen-by-convention; methods return new instances.
+- ❌ Using 0-indexed months (JS-`Date`-style) — this library is **always** 1-indexed.
+- ❌ Calling `bsToAd` with year < 1975 or > 2099 — out of range, throws.
+- ❌ Round-tripping through `toString()` and re-parsing if you want time preserved — `toString()` drops time. Use `format("YYYY-MM-DD HH:mm:ss")` or `toJSON()`.
+- ❌ Constructing `new NepaliDate(...)` manually — prefer the static factories.
+- ❌ Using a JS `Date` and assuming local-timezone fields — range conversion uses **UTC** fields. For local semantics, pass `{year, month, day}`.
+
+## Imports
+
+```ts
+// Pick what you need (tree-shakeable):
+import { bsToAd, adToBs, formatBs, parseBs } from "nepali-date-pro-max";
+import { addDays, isToday, eachDayOfInterval } from "nepali-date-pro-max";
+import { NepaliDate } from "nepali-date-pro-max";
+import { convertAdRangeToBs, eachBsDayInAdRange } from "nepali-date-pro-max";
+import { getFiscalYear, formatFiscalYear } from "nepali-date-pro-max";
+
+// CommonJS works too:
+const { NepaliDate, addDays } = require("nepali-date-pro-max");
+```
+
+## License
+
+MIT
