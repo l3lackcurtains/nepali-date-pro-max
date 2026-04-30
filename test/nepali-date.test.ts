@@ -123,6 +123,158 @@ describe("NepaliDate comparison", () => {
   });
 });
 
+describe("NepaliDate sub* methods", () => {
+  const d = NepaliDate.fromBs(2081, 6, 15, 12, 30);
+
+  it("subDays / subMonths / subYears mirror their add counterparts", () => {
+    expect(d.subDays(7).diffDays(d)).toBe(-7);
+    expect(d.subMonths(3).getMonth()).toBe(3);
+    expect(d.subYears(1).getYear()).toBe(2080);
+  });
+
+  it("subHours / subMinutes / subSeconds / subMilliseconds round-trip", () => {
+    expect(d.subHours(2).addHours(2).isSameDay(d)).toBe(true);
+    expect(d.subMinutes(60).addMinutes(60).getHours()).toBe(d.getHours());
+    expect(d.subSeconds(1).addSeconds(1).getSeconds()).toBe(d.getSeconds());
+    expect(d.subMilliseconds(1).addMilliseconds(1).getMilliseconds()).toBe(
+      d.getMilliseconds(),
+    );
+  });
+});
+
+describe("NepaliDate setters", () => {
+  const d = NepaliDate.fromBs(2081, 1, 31, 9, 15, 30, 250);
+
+  it("setYear preserves time and clamps day", () => {
+    const r = d.setYear(2080);
+    expect(r.getYear()).toBe(2080);
+    expect(r.getMonth()).toBe(1);
+    expect(r.getHours()).toBe(9);
+    expect(r.getMilliseconds()).toBe(250);
+  });
+
+  it("setMonth clamps day if target month is shorter", () => {
+    const r = d.setMonth(9);
+    expect(r.getMonth()).toBe(9);
+    expect(r.getDate()).toBeLessThanOrEqual(r.daysInMonth());
+  });
+
+  it("setDate throws on out-of-range", () => {
+    expect(() => d.setDate(0)).toThrow();
+    expect(() => d.setDate(d.daysInMonth() + 1)).toThrow();
+  });
+
+  it("setDay moves within the same week (Sunday-start)", () => {
+    const r = d.setDay(1);
+    expect(r.getDay()).toBe(1);
+    expect(Math.abs(r.diffDays(d))).toBeLessThanOrEqual(6);
+  });
+
+  it("setDayOfYear lands on the right day", () => {
+    const r = d.setDayOfYear(1);
+    expect(r.getMonth()).toBe(1);
+    expect(r.getDate()).toBe(1);
+    expect(r.getDayOfYear()).toBe(1);
+  });
+
+  it("setHours / setMinutes / setSeconds / setMilliseconds replace only that field", () => {
+    expect(d.setHours(0).getHours()).toBe(0);
+    expect(d.setMinutes(45).getMinutes()).toBe(45);
+    expect(d.setSeconds(0).getSeconds()).toBe(0);
+    expect(d.setMilliseconds(999).getMilliseconds()).toBe(999);
+    expect(d.setHours(0).getMinutes()).toBe(15);
+  });
+
+  it("setHours rejects out-of-range", () => {
+    expect(() => d.setHours(24)).toThrow();
+    expect(() => d.setMinutes(-1)).toThrow();
+  });
+
+  it("chains naturally", () => {
+    const r = d.setMonth(5).setDate(1).startOfDay();
+    expect(r.toBs()).toEqual({ year: 2081, month: 5, day: 1 });
+    expect(r.getHours()).toBe(0);
+  });
+});
+
+describe("NepaliDate week & fiscal boundaries", () => {
+  const d = NepaliDate.fromBs(2081, 1, 15); // pick mid-month
+
+  it("startOfWeek / endOfWeek default Sunday-start", () => {
+    const s = d.startOfWeek();
+    const e = d.endOfWeek();
+    expect(s.getDay()).toBe(0);
+    expect(e.getDay()).toBe(6);
+    expect(e.diffDays(s)).toBe(6);
+  });
+
+  it("startOfWeek respects weekStartsOn", () => {
+    const s = d.startOfWeek({ weekStartsOn: 1 });
+    expect(s.getDay()).toBe(1);
+  });
+
+  it("getFiscalYear: month >= 4 keeps year, < 4 subtracts 1", () => {
+    expect(NepaliDate.fromBs(2081, 4, 1).getFiscalYear()).toBe(2081);
+    expect(NepaliDate.fromBs(2081, 3, 30).getFiscalYear()).toBe(2080);
+  });
+
+  it("getFiscalQuarter maps months correctly", () => {
+    expect(NepaliDate.fromBs(2081, 4, 1).getFiscalQuarter()).toBe(1);
+    expect(NepaliDate.fromBs(2081, 7, 1).getFiscalQuarter()).toBe(2);
+    expect(NepaliDate.fromBs(2081, 10, 1).getFiscalQuarter()).toBe(3);
+    expect(NepaliDate.fromBs(2081, 1, 1).getFiscalQuarter()).toBe(4);
+  });
+
+  it("startOfFiscalYear / endOfFiscalYear bracket the FY", () => {
+    const mid = NepaliDate.fromBs(2081, 9, 10);
+    const start = mid.startOfFiscalYear();
+    const end = mid.endOfFiscalYear();
+    expect(start.toBs()).toEqual({ year: 2081, month: 4, day: 1 });
+    expect(end.getYear()).toBe(2082);
+    expect(end.getMonth()).toBe(3);
+    expect(start.isBefore(mid)).toBe(true);
+    expect(end.isAfter(mid)).toBe(true);
+  });
+});
+
+describe("NepaliDate differenceIn* family", () => {
+  const a = NepaliDate.fromBs(2081, 6, 15);
+  const b = NepaliDate.fromBs(2080, 6, 15);
+
+  it("differenceInDays / Weeks match diffDays", () => {
+    expect(a.differenceInDays(b)).toBe(a.diffDays(b));
+    expect(a.differenceInWeeks(b)).toBe(Math.trunc(a.diffDays(b) / 7));
+  });
+
+  it("differenceInMonths / Years signed", () => {
+    expect(a.differenceInMonths(b)).toBe(12);
+    expect(a.differenceInYears(b)).toBe(1);
+    expect(b.differenceInYears(a)).toBe(-1);
+  });
+
+  it("differenceInMonths reduces when day-of-month is earlier", () => {
+    const x = NepaliDate.fromBs(2081, 6, 10); // earlier day
+    const y = NepaliDate.fromBs(2081, 5, 15);
+    expect(x.differenceInMonths(y)).toBe(0); // not yet a full month
+    expect(x.differenceInCalendarMonths(y)).toBe(1);
+  });
+
+  it("differenceInCalendarYears counts year boundaries", () => {
+    expect(a.differenceInCalendarYears(b)).toBe(1);
+  });
+
+  it("differenceInHours / Minutes / Seconds / Milliseconds use elapsed time", () => {
+    const t = NepaliDate.fromBs(2081, 1, 1, 12, 0, 0, 0);
+    const u = NepaliDate.fromBs(2081, 1, 1, 10, 30, 30, 500);
+    expect(t.differenceInHours(u)).toBe(1);
+    expect(t.differenceInMinutes(u)).toBe(89);
+    expect(t.differenceInSeconds(u)).toBe(89 * 60 + 29);
+    expect(t.differenceInMilliseconds(u)).toBe(
+      ((89 * 60 + 29) * 1000) + 500,
+    );
+  });
+});
+
 describe("NepaliDate format / toJSON", () => {
   const d = NepaliDate.fromBs(2081, 1, 1, 14, 30);
 

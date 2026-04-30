@@ -412,6 +412,35 @@ export class NepaliDate {
     return NepaliDate.fromJsDate(next);
   }
 
+  /** Returns a new instance with `n` days subtracted (negative adds). */
+  subDays(n: number): NepaliDate {
+    return this.addDays(-n);
+  }
+  /** Returns a new instance with `n` BS-months subtracted. Clamps day if needed. */
+  subMonths(n: number): NepaliDate {
+    return this.addMonths(-n);
+  }
+  /** Returns a new instance with `n` BS-years subtracted. Clamps day if needed. */
+  subYears(n: number): NepaliDate {
+    return this.addYears(-n);
+  }
+  /** Returns a new instance with `n` hours subtracted. */
+  subHours(n: number): NepaliDate {
+    return this.addHours(-n);
+  }
+  /** Returns a new instance with `n` minutes subtracted. */
+  subMinutes(n: number): NepaliDate {
+    return this.addMinutes(-n);
+  }
+  /** Returns a new instance with `n` seconds subtracted. */
+  subSeconds(n: number): NepaliDate {
+    return this.addSeconds(-n);
+  }
+  /** Returns a new instance with `n` milliseconds subtracted. */
+  subMilliseconds(n: number): NepaliDate {
+    return this.addMilliseconds(-n);
+  }
+
   /** Returns a new instance at the first day of this BS month. */
   startOfMonth(): NepaliDate {
     return new NepaliDate(this.#year, this.#month, 1);
@@ -434,6 +463,153 @@ export class NepaliDate {
     return new NepaliDate(this.#year, 12, total[11]!);
   }
 
+  // ---------- Setters (immutable; returns NEW instance) ----------
+
+  /** Returns a new instance with the BS year set. Clamps day-of-month if needed. */
+  setYear(year: number): NepaliDate {
+    if (!Number.isInteger(year) || year < FIRST_BS_YEAR || year > LAST_BS_YEAR) {
+      throw new RangeError(
+        `setYear: ${year} is outside supported range [${FIRST_BS_YEAR}, ${LAST_BS_YEAR}]`,
+      );
+    }
+    const dim = daysInBsMonth(year, this.#month);
+    return new NepaliDate(
+      year,
+      this.#month,
+      Math.min(this.#day, dim),
+      this.#hour,
+      this.#minute,
+      this.#second,
+      this.#millisecond,
+    );
+  }
+
+  /** Returns a new instance with the BS month set (1..12). Clamps day-of-month if needed. */
+  setMonth(month: number): NepaliDate {
+    if (!Number.isInteger(month) || month < 1 || month > 12) {
+      throw new RangeError(`setMonth: ${month} must be integer 1..12`);
+    }
+    const dim = daysInBsMonth(this.#year, month);
+    return new NepaliDate(
+      this.#year,
+      month,
+      Math.min(this.#day, dim),
+      this.#hour,
+      this.#minute,
+      this.#second,
+      this.#millisecond,
+    );
+  }
+
+  /** Returns a new instance with the day-of-month set. Throws if `day` is out of range. */
+  setDate(day: number): NepaliDate {
+    return new NepaliDate(
+      this.#year,
+      this.#month,
+      day,
+      this.#hour,
+      this.#minute,
+      this.#second,
+      this.#millisecond,
+    );
+  }
+
+  /**
+   * Returns a new instance moved to the given weekday within the same week.
+   * `weekday`: 0=Sunday … 6=Saturday. Default `weekStartsOn = 0` (Sunday).
+   */
+  setDay(
+    weekday: number,
+    options: { weekStartsOn?: number } = {},
+  ): NepaliDate {
+    if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6) {
+      throw new RangeError("setDay: weekday must be integer 0..6");
+    }
+    const start = options.weekStartsOn ?? 0;
+    const curIdx = (((this.getDay() - start) % 7) + 7) % 7;
+    const targetIdx = (((weekday - start) % 7) + 7) % 7;
+    return this.addDays(targetIdx - curIdx);
+  }
+
+  /** Returns a new instance with the day-of-year set (1..(365|366)). */
+  setDayOfYear(dayOfYear: number): NepaliDate {
+    const total = daysInBsYear(this.#year);
+    if (
+      !Number.isInteger(dayOfYear) ||
+      dayOfYear < 1 ||
+      dayOfYear > total
+    ) {
+      throw new RangeError(
+        `setDayOfYear: ${dayOfYear} invalid for ${this.#year} (1..${total})`,
+      );
+    }
+    return this.startOfYear().addDays(dayOfYear - 1);
+  }
+
+  /** Returns a new instance with the hour-of-day set (0..23). */
+  setHours(hours: number): NepaliDate {
+    if (!Number.isInteger(hours) || hours < 0 || hours > 23) {
+      throw new RangeError(`setHours: ${hours} must be integer 0..23`);
+    }
+    return new NepaliDate(
+      this.#year,
+      this.#month,
+      this.#day,
+      hours,
+      this.#minute,
+      this.#second,
+      this.#millisecond,
+    );
+  }
+
+  /** Returns a new instance with the minute-of-hour set (0..59). */
+  setMinutes(minutes: number): NepaliDate {
+    if (!Number.isInteger(minutes) || minutes < 0 || minutes > 59) {
+      throw new RangeError(`setMinutes: ${minutes} must be integer 0..59`);
+    }
+    return new NepaliDate(
+      this.#year,
+      this.#month,
+      this.#day,
+      this.#hour,
+      minutes,
+      this.#second,
+      this.#millisecond,
+    );
+  }
+
+  /** Returns a new instance with the second-of-minute set (0..59). */
+  setSeconds(seconds: number): NepaliDate {
+    if (!Number.isInteger(seconds) || seconds < 0 || seconds > 59) {
+      throw new RangeError(`setSeconds: ${seconds} must be integer 0..59`);
+    }
+    return new NepaliDate(
+      this.#year,
+      this.#month,
+      this.#day,
+      this.#hour,
+      this.#minute,
+      seconds,
+      this.#millisecond,
+    );
+  }
+
+  /** Returns a new instance with the millisecond-of-second set (0..999). */
+  setMilliseconds(ms: number): NepaliDate {
+    if (!Number.isInteger(ms) || ms < 0 || ms > 999) {
+      throw new RangeError(`setMilliseconds: ${ms} must be integer 0..999`);
+    }
+    return new NepaliDate(
+      this.#year,
+      this.#month,
+      this.#day,
+      this.#hour,
+      this.#minute,
+      this.#second,
+      ms,
+    );
+  }
+
   // ---------- Comparison ----------
 
   /** Signed difference in whole days: `this - other`. */
@@ -441,6 +617,58 @@ export class NepaliDate {
     return Math.round(
       (this.toJsDate().getTime() - other.toJsDate().getTime()) / MS_PER_DAY,
     );
+  }
+  /** Signed whole days, `this − other`. Alias of {@link diffDays}. */
+  differenceInDays(other: NepaliDate): number {
+    return this.diffDays(other);
+  }
+  /** Signed whole weeks, truncated toward zero. */
+  differenceInWeeks(other: NepaliDate): number {
+    return Math.trunc(this.diffDays(other) / 7);
+  }
+  /** Signed whole hours, truncated toward zero. */
+  differenceInHours(other: NepaliDate): number {
+    return Math.trunc(this.differenceInMilliseconds(other) / 3_600_000);
+  }
+  /** Signed whole minutes, truncated toward zero. */
+  differenceInMinutes(other: NepaliDate): number {
+    return Math.trunc(this.differenceInMilliseconds(other) / 60_000);
+  }
+  /** Signed whole seconds, truncated toward zero. */
+  differenceInSeconds(other: NepaliDate): number {
+    return Math.trunc(this.differenceInMilliseconds(other) / 1000);
+  }
+  /** Signed milliseconds, `this − other`. */
+  differenceInMilliseconds(other: NepaliDate): number {
+    return this.toJsDate().getTime() - other.toJsDate().getTime();
+  }
+  /** Calendar-day difference, ignoring time-of-day. */
+  differenceInCalendarDays(other: NepaliDate): number {
+    return this.startOfDay().diffDays(other.startOfDay());
+  }
+  /** Number of BS month-boundaries crossed (signed). */
+  differenceInCalendarMonths(other: NepaliDate): number {
+    return (this.#year - other.#year) * 12 + (this.#month - other.#month);
+  }
+  /**
+   * Whole BS months between, signed. If `this` is after `other` but the
+   * day-of-month is earlier, the count is reduced by 1 (mirrors date-fns).
+   */
+  differenceInMonths(other: NepaliDate): number {
+    const sign = this.isBefore(other) ? -1 : 1;
+    const later = sign === 1 ? this : other;
+    const earlier = sign === 1 ? other : this;
+    let months = later.differenceInCalendarMonths(earlier);
+    if (later.#day < earlier.#day) months -= 1;
+    return sign * Math.max(0, months);
+  }
+  /** Number of BS year-boundaries crossed (signed). */
+  differenceInCalendarYears(other: NepaliDate): number {
+    return this.#year - other.#year;
+  }
+  /** Whole BS years between, signed. */
+  differenceInYears(other: NepaliDate): number {
+    return Math.trunc(this.differenceInMonths(other) / 12);
   }
   /** True if `this` precedes `other` (date+time). */
   isBefore(other: NepaliDate): boolean {
@@ -482,7 +710,7 @@ export class NepaliDate {
     return weekendDays.includes(this.getDay());
   }
 
-  // ---------- Day boundaries ----------
+  // ---------- Day & week boundaries ----------
 
   /** Returns a new instance at 00:00:00.000 on the same calendar day. */
   startOfDay(): NepaliDate {
@@ -499,6 +727,46 @@ export class NepaliDate {
       59,
       999,
     );
+  }
+  /**
+   * Returns a new instance at the start of the week. Default `weekStartsOn = 0`
+   * (Sunday — the standard in Nepal). Time-of-day is preserved.
+   */
+  startOfWeek(options: { weekStartsOn?: number } = {}): NepaliDate {
+    const start = options.weekStartsOn ?? 0;
+    const diff = (this.getDay() - start + 7) % 7;
+    return this.addDays(-diff);
+  }
+  /** Returns a new instance at the end of the week (6 days after start). */
+  endOfWeek(options: { weekStartsOn?: number } = {}): NepaliDate {
+    return this.startOfWeek(options).addDays(6);
+  }
+
+  // ---------- Fiscal year ----------
+
+  /**
+   * BS fiscal year that this date belongs to. Nepal's FY runs Shrawan 1 (m4)
+   * through Ashad-end (m3 of next BS year), named after the BS year of Shrawan.
+   */
+  getFiscalYear(): number {
+    return this.#month >= 4 ? this.#year : this.#year - 1;
+  }
+  /** Quarter (1..4) within the fiscal year that this date belongs to. */
+  getFiscalQuarter(): number {
+    const m = this.#month;
+    if (m >= 4 && m <= 6) return 1;
+    if (m >= 7 && m <= 9) return 2;
+    if (m >= 10 && m <= 12) return 3;
+    return 4;
+  }
+  /** Returns a new instance at Shrawan 1 of this date's fiscal year. */
+  startOfFiscalYear(): NepaliDate {
+    return new NepaliDate(this.getFiscalYear(), 4, 1);
+  }
+  /** Returns a new instance at the last day of Ashad of this date's fiscal year. */
+  endOfFiscalYear(): NepaliDate {
+    const fy = this.getFiscalYear();
+    return new NepaliDate(fy + 1, 3, daysInBsMonth(fy + 1, 3));
   }
 
   // ---------- JSON / debug ----------
