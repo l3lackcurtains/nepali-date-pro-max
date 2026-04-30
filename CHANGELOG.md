@@ -1,5 +1,66 @@
 # Changelog
 
+## 2.0.0 — Day.js-style locale system (BREAKING)
+
+> **Why:** the locale story was inconsistent across the API — some functions had a `nepali: true` flag, others had `*Nepali` siblings, and the `NepaliDate` class shipped both `format()` + `formatNepali()` plus `getMonthName()` + `getMonthNameNepali()`. Day.js solves this with a single locale registry and a chainable `.locale()` setter, and that's what the library now uses everywhere. Released only hours after `1.0.0`, so the cleanup ships as a hard break rather than a deprecation tail.
+
+### Added
+
+- **Locale registry.** `Locale` interface with `name`, `months`/`monthsShort`, `weekdays`/`weekdaysShort`/`weekdaysMin`, a `digits` converter, and an optional `relativeTime` phrasebook (used by `formatDistance` / `formatRelative`).
+- **Built-in `"en"` and `"ne"` locales** — Roman + ASCII digits and Devanagari + Devanagari digits, respectively.
+- **Global locale**: `NepaliDate.locale()` / `NepaliDate.locale(name)` (Day.js-style getter/setter), with functional aliases `getGlobalLocale` / `setGlobalLocale`.
+- **Per-instance locale**: `d.locale()` reads the resolved locale, `d.locale(name)` returns a NEW immutable instance — locale is **threaded through every chained operation** (`addDays`, `addMonths`, `setYear`, `startOfMonth`, `addMilliseconds`, …).
+- **Custom locales** via `registerLocale(locale)`; inspect with `getLocale` / `hasLocale` / `listLocales`.
+- **`DistanceOptions`** type — `formatDistance`, `formatDistanceToNow`, and `formatRelative` now accept `{ locale }`.
+- **README "🌐 Locale" section** and updated `llms.txt` covering the new model.
+- **24 new locale tests** covering global default, instance override, chain propagation, custom locale registration, and calendar pickup.
+
+### Changed (BREAKING)
+
+- `formatBs(date, pattern, options?)` — `options.nepali` removed. Use `options.locale: "en" | "ne" | Locale`.
+- `NepaliDate#format(pattern, options?)` — uses the instance's locale by default; `options.locale` overrides.
+- `NepaliDate#getMonthName()` / `getDayName()` — now follow the active locale instead of always returning Roman.
+- `formatFiscalYear(fy, options?)` — `options.nepali` removed. Use `options.locale`.
+- `RangeConvertOptions.nepali` removed; use `RangeConvertOptions.locale` (inherited from `FormatOptions`).
+- `getCalendarMonth/Year/Day` — `options.locale` defaults from the global locale (was hard-coded `"en"`).
+- `NepaliDateDetails` — dropped `weekdayNameNepali` and `monthNameNepali`; added `locale` field. Use `.locale("ne").getDetails()` if you need both forms.
+
+### Removed (BREAKING)
+
+- `NepaliDate#formatNepali()` → `d.locale("ne").format(...)`.
+- `NepaliDate#getMonthNameNepali()` → `d.locale("ne").getMonthName()`.
+- `NepaliDate#getDayNameNepali()` → `d.locale("ne").getDayName()`.
+- `formatDistanceNepali(a, b)` → `formatDistance(a, b, { locale: "ne" })`.
+- `formatDistanceToNowNepali(x)` → `formatDistanceToNow(x, { locale: "ne" })`.
+- `formatRelativeNepali(x, base?)` → `formatRelative(x, base, { locale: "ne" })`.
+
+### Migration
+
+```ts
+// before
+NepaliDate.now().formatNepali("DD MMMM YYYY");
+formatBs(d, "YYYY-MM-DD", { nepali: true });
+formatDistanceToNowNepali(post.createdAt);
+formatFiscalYear(2081, { nepali: true });
+
+// after — option A: per-call locale
+NepaliDate.now().locale("ne").format("DD MMMM YYYY");
+formatBs(d, "YYYY-MM-DD", { locale: "ne" });
+formatDistanceToNow(post.createdAt, { locale: "ne" });
+formatFiscalYear(2081, { locale: "ne" });
+
+// after — option B: set once globally
+NepaliDate.locale("ne");
+NepaliDate.now().format("DD MMMM YYYY");
+formatBs(d, "YYYY-MM-DD");
+formatDistanceToNow(post.createdAt);
+formatFiscalYear(2081);
+```
+
+The `CalendarMonth` / `CalendarDayCell` shapes still expose locale-independent `monthNameNepali` / `weekdayNameNepali` / `bsDayNepali` fields for bilingual UIs that want both forms in one render — those are *not* removed.
+
+---
+
 ## 1.0.0 — initial release of `nepali-date-pro-max`
 
 ### Conversion core

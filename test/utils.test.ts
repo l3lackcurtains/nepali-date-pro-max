@@ -25,10 +25,7 @@ import {
   endOfFiscalYear,
   endOfWeek,
   formatDistance,
-  formatDistanceNepali,
   formatDistanceToNow,
-  formatDistanceToNowNepali,
-  formatRelativeNepali,
   formatFiscalYear,
   formatRelative,
   getFiscalQuarter,
@@ -256,7 +253,7 @@ describe("cross-calendar range conversion", () => {
     const r = convertAdRangeToBs(
       { year: 2024, month: 4, day: 13 },
       { year: 2024, month: 4, day: 13 },
-      { format: "YYYY-MM-DD", nepali: true },
+      { format: "YYYY-MM-DD", locale: "ne" },
     );
     expect(r.start).toBe("२०८१-०१-०१");
   });
@@ -333,7 +330,7 @@ describe("fiscal year", () => {
   it("formatFiscalYear", () => {
     expect(formatFiscalYear(2081)).toBe("2081/82");
     expect(formatFiscalYear(2099)).toBe("2099/00");
-    expect(formatFiscalYear(2081, { nepali: true })).toBe("२०८१/८२");
+    expect(formatFiscalYear(2081, { locale: "ne" })).toBe("२०८१/८२");
   });
 
   it("getFiscalQuarter", () => {
@@ -355,7 +352,7 @@ describe("formatDistance — pure duration, no suffix", () => {
   it("Nepali (Devanagari)", () => {
     const a = NepaliDate.fromBs(2081, 1, 1);
     const b = NepaliDate.fromBs(2081, 1, 6);
-    expect(formatDistanceNepali(b, a)).toBe("५ दिन");
+    expect(formatDistance(b, a, { locale: "ne" })).toBe("५ दिन");
   });
 
   it("never includes a suffix", () => {
@@ -379,7 +376,9 @@ describe("formatDistance — polymorphic inputs", () => {
 
   it("accepts ISO date strings (Gregorian)", () => {
     expect(formatDistance("2024-04-13", "2024-04-20")).toBe("7 days");
-    expect(formatDistanceNepali("2024-04-13", "2024-04-20")).toBe("७ दिन");
+    expect(
+      formatDistance("2024-04-13", "2024-04-20", { locale: "ne" }),
+    ).toBe("७ दिन");
   });
 
   it("accepts mixed input types", () => {
@@ -404,13 +403,15 @@ describe("formatDistanceToNow — always includes ago/in suffix", () => {
   });
 
   it("Nepali: past timestamp → 'X अघि'", () => {
-    expect(formatDistanceToNowNepali(Date.now() - 5 * 60_000)).toBe(
-      "५ मिनेट अघि",
-    );
+    expect(
+      formatDistanceToNow(Date.now() - 5 * 60_000, { locale: "ne" }),
+    ).toBe("५ मिनेट अघि");
   });
 
   it("Nepali: future timestamp → 'X पछि'", () => {
-    expect(formatDistanceToNowNepali(Date.now() + 86_400_000)).toMatch(/पछि$/);
+    expect(
+      formatDistanceToNow(Date.now() + 86_400_000, { locale: "ne" }),
+    ).toMatch(/पछि$/);
   });
 
   it("works with JS Date and ISO string", () => {
@@ -431,10 +432,11 @@ describe("formatRelative — smart phrasing", () => {
 
   it("Nepali: हिजो / आज / भोलि / N दिनमा", () => {
     const today = NepaliDate.now();
-    expect(formatRelativeNepali(today)).toBe("आज");
-    expect(formatRelativeNepali(today.addDays(-1))).toBe("हिजो");
-    expect(formatRelativeNepali(today.addDays(1))).toBe("भोलि");
-    expect(formatRelativeNepali(today.addDays(3))).toBe("३ दिनमा");
+    const ne = { locale: "ne" } as const;
+    expect(formatRelative(today, undefined, ne)).toBe("आज");
+    expect(formatRelative(today.addDays(-1), undefined, ne)).toBe("हिजो");
+    expect(formatRelative(today.addDays(1), undefined, ne)).toBe("भोलि");
+    expect(formatRelative(today.addDays(3), undefined, ne)).toBe("३ दिनमा");
   });
 
   it("accepts a timestamp", () => {

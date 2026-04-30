@@ -1,6 +1,6 @@
 {
   "name": "nepali-date-pro-max",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "नेपाली Bikram Sambat ↔ Gregorian date library for the Nepali developer community. 1975–2099 BS range, full date+time, Devanagari, calendar grid, fiscal year, AD↔BS range conversion, 100+ date-fns-style helpers. TypeScript-first, zero deps, ESM+CJS.",
   "type": "module",
   "main": "./dist/index.cjs",

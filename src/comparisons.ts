@@ -147,7 +147,7 @@ export function isAfter(a: NepaliDate, b: NepaliDate): boolean {
 }
 /** True if both refer to the same instant. */
 export function isEqual(a: NepaliDate, b: NepaliDate): boolean {
-  return a.toJsDate().getTime() === b.toJsDate().getTime();
+  return a.toJsDateUTC().getTime() === b.toJsDateUTC().getTime();
 }
 
 // ---------- intervals ----------

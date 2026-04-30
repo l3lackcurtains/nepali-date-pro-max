@@ -43,7 +43,6 @@
  * ```
  */
 
-import { BS_MONTH_NAMES, BS_MONTH_NAMES_NP, WEEKDAY_NAMES, WEEKDAY_NAMES_NP } from "./constants.js";
 import {
   adToBs,
   bsDayOfYear,
@@ -58,6 +57,11 @@ import {
   daysInBsYear,
 } from "./data.js";
 import { type FormatOptions, formatBs } from "./format.js";
+import {
+  getGlobalLocale,
+  getLocale,
+  setGlobalLocale,
+} from "./locale.js";
 import { parseBs } from "./parse.js";
 import type { AdDate, BsDate, NepaliDateDetails } from "./types.js";
 
@@ -73,6 +77,8 @@ export class NepaliDate {
   readonly #minute: number;
   readonly #second: number;
   readonly #millisecond: number;
+  /** Locale name set on this instance, or `undefined` to defer to the global. */
+  readonly #locale: string | undefined;
 
   /**
    * Construct from BS calendar fields. Prefer the static factories for clarity.
@@ -86,6 +92,7 @@ export class NepaliDate {
     minute = 0,
     second = 0,
     millisecond = 0,
+    locale?: string,
   ) {
     // Validation also guards against out-of-range BS years.
     const dim = daysInBsMonth(year, month);
@@ -110,6 +117,10 @@ export class NepaliDate {
     ) {
       throw new RangeError("NepaliDate: invalid time component");
     }
+    if (locale !== undefined) {
+      // Validate the locale name eagerly so misuse fails at construction.
+      getLocale(locale);
+    }
     this.#year = year;
     this.#month = month;
     this.#day = day;
@@ -117,6 +128,58 @@ export class NepaliDate {
     this.#minute = minute;
     this.#second = second;
     this.#millisecond = millisecond;
+    this.#locale = locale;
+  }
+
+  // ---------- Locale ----------
+
+  /**
+   * Get or set the global default locale.
+   *
+   * - `NepaliDate.locale()` → current global name (e.g. `"en"`, `"ne"`).
+   * - `NepaliDate.locale("ne")` → set the default to `"ne"` and returns the
+   *   new global name. Affects every `NepaliDate` instance that hasn't
+   *   pinned its own locale, and every `getCalendarMonth` / format call
+   *   without an explicit `locale` option.
+   *
+   * @example
+   * NepaliDate.locale("ne");
+   * NepaliDate.now().format("DD MMMM YYYY"); // Devanagari
+   */
+  static locale(): string;
+  static locale(name: string): string;
+  static locale(name?: string): string {
+    if (name === undefined) return getGlobalLocale();
+    setGlobalLocale(name);
+    return getGlobalLocale();
+  }
+
+  /**
+   * Get this instance's locale, or return a NEW instance with the given locale.
+   *
+   * - `d.locale()` → resolved locale name (instance → global → `"en"`).
+   * - `d.locale("ne")` → returns a new `NepaliDate` whose `format()`,
+   *   `getMonthName()`, and `getDayName()` use Devanagari.
+   *
+   * @example
+   * const d = NepaliDate.fromBs(2081, 1, 15);
+   * d.locale("ne").format("DD MMMM YYYY"); // "१५ बैशाख २०८१"
+   * d.locale("en").format("DD MMMM YYYY"); // "15 Baishakh 2081"
+   */
+  locale(): string;
+  locale(name: string): NepaliDate;
+  locale(name?: string): string | NepaliDate {
+    if (name === undefined) return this.#locale ?? getGlobalLocale();
+    return new NepaliDate(
+      this.#year,
+      this.#month,
+      this.#day,
+      this.#hour,
+      this.#minute,
+      this.#second,
+      this.#millisecond,
+      name,
+    );
   }
 
   // ---------- Factories ----------
@@ -232,21 +295,21 @@ export class NepaliDate {
     return this.#millisecond;
   }
 
-  /** English month name, e.g. "Baishakh". */
+  /**
+   * Month name in this instance's locale (e.g. `"Baishakh"` for `"en"`,
+   * `"बैशाख"` for `"ne"`). To get a different locale's name, chain through
+   * `.locale("ne").getMonthName()`.
+   */
   getMonthName(): string {
-    return BS_MONTH_NAMES[this.#month - 1]!;
+    return getLocale(this.locale()).months[this.#month - 1]!;
   }
-  /** Devanagari month name, e.g. "बैशाख". */
-  getMonthNameNepali(): string {
-    return BS_MONTH_NAMES_NP[this.#month - 1]!;
-  }
-  /** English weekday name, e.g. "Saturday". */
+  /**
+   * Weekday name in this instance's locale (e.g. `"Saturday"` for `"en"`,
+   * `"शनिबार"` for `"ne"`). To get a different locale's name, chain through
+   * `.locale("ne").getDayName()`.
+   */
   getDayName(): string {
-    return WEEKDAY_NAMES[this.getDay()]!;
-  }
-  /** Devanagari weekday name, e.g. "शनिबार". */
-  getDayNameNepali(): string {
-    return WEEKDAY_NAMES_NP[this.getDay()]!;
+    return getLocale(this.locale()).weekdays[this.getDay()]!;
   }
 
   /** Total days in this BS month. */
@@ -271,10 +334,33 @@ export class NepaliDate {
   }
 
   /**
-   * As a native JavaScript `Date`. The instant is the start of the BS day
-   * in Asia/Kathmandu wall-clock, plus any time-of-day components.
+   * As a native JavaScript `Date` whose **local** calendar fields match the
+   * AD-equivalent BS date. This is what most consumers want — calling
+   * `.toLocaleDateString()` on the result shows the same calendar day
+   * regardless of host timezone (the Nepali calendar value is timezone-free).
+   *
+   * For the actual Asia/Kathmandu instant, use {@link toJsDateUTC}.
    */
   toJsDate(): Date {
+    const ad = this.toAd();
+    return new Date(
+      ad.year,
+      ad.month - 1,
+      ad.day,
+      this.#hour,
+      this.#minute,
+      this.#second,
+      this.#millisecond,
+    );
+  }
+
+  /**
+   * As a JavaScript `Date` representing the actual UTC instant when Nepal
+   * Time (UTC+05:45) reads this date+time. Use this when you need to
+   * coordinate with timestamps across timezones — e.g. saving to a database
+   * or comparing to `Date.now()`.
+   */
+  toJsDateUTC(): Date {
     const ad = this.toAd();
     const utcMs = Date.UTC(
       ad.year,
@@ -285,23 +371,29 @@ export class NepaliDate {
       this.#second,
       this.#millisecond,
     );
-    // The above is "what the wall clock shows" interpreted as UTC.
-    // Subtract Nepal's UTC offset to get the actual instant.
     return new Date(utcMs - NPT_OFFSET_MS);
   }
 
-  /** Default ISO-style BS string, e.g. `"2081-01-15"`. */
+  /** Default ISO-style BS string, e.g. `"2081-01-15"`. ASCII digits regardless of locale. */
   toString(): string {
-    return formatBs(this.toBs(), "YYYY-MM-DD");
+    return formatBs(this.toBs(), "YYYY-MM-DD", { locale: "en" });
   }
 
   /**
-   * Format using a token pattern. See {@link formatBs} for the token list.
+   * Format using a token pattern. Renders in this instance's locale by
+   * default (set via `.locale("ne")` or globally via `NepaliDate.locale("ne")`).
+   * See {@link formatBs} for the token list.
+   *
    * @example
-   * d.format("DD MMMM, YYYY (dddd)")
-   * d.format("DD MMMM YYYY", { nepali: true })
+   * d.format("DD MMMM, YYYY (dddd)")            // current locale
+   * d.format("DD MMMM YYYY", { locale: "ne" })  // one-off Devanagari
+   * d.locale("ne").format("DD MMMM YYYY")       // chainable Devanagari
    */
   format(pattern: string, options?: FormatOptions): string {
+    const opts: FormatOptions =
+      options && options.locale !== undefined
+        ? options
+        : { ...options, locale: this.locale() };
     return formatBs(
       {
         year: this.#year,
@@ -312,28 +404,26 @@ export class NepaliDate {
         second: this.#second,
       },
       pattern,
-      options,
+      opts,
     );
   }
 
-  /** Devanagari-formatted shorthand. Equivalent to `format(pattern, { nepali: true })`. */
-  formatNepali(pattern = "YYYY-MM-DD"): string {
-    return this.format(pattern, { nepali: true });
-  }
-
-  /** Comprehensive details object — handy for AI/UI consumers. */
+  /**
+   * Comprehensive details object — handy for AI/UI consumers. Names are
+   * rendered in this instance's locale; chain `.locale("ne").getDetails()`
+   * to get Devanagari output.
+   */
   getDetails(): NepaliDateDetails {
     return {
       bs: this.toBs(),
       ad: this.toAd(),
       weekday: this.getDay(),
       weekdayName: this.getDayName(),
-      weekdayNameNepali: this.getDayNameNepali(),
       monthName: this.getMonthName(),
-      monthNameNepali: this.getMonthNameNepali(),
       dayOfYear: this.getDayOfYear(),
       daysInYear: this.daysInYear(),
       daysInMonth: this.daysInMonth(),
+      locale: this.locale(),
     };
   }
 
@@ -354,6 +444,7 @@ export class NepaliDate {
       this.#minute,
       this.#second,
       this.#millisecond,
+      this.#locale,
     );
   }
 
@@ -382,6 +473,7 @@ export class NepaliDate {
       this.#minute,
       this.#second,
       this.#millisecond,
+      this.#locale,
     );
   }
 
@@ -406,9 +498,10 @@ export class NepaliDate {
   addMilliseconds(n: number): NepaliDate {
     if (!Number.isFinite(n))
       throw new TypeError("addMilliseconds: n must be a number");
-    const base = this.toJsDate();
+    const base = this.toJsDateUTC();
     const next = new Date(base.getTime() + n);
-    return NepaliDate.fromJsDate(next);
+    const result = NepaliDate.fromJsDate(next);
+    return this.#locale === undefined ? result : result.locale(this.#locale);
   }
 
   /** Returns a new instance with `n` days subtracted (negative adds). */
@@ -442,7 +535,16 @@ export class NepaliDate {
 
   /** Returns a new instance at the first day of this BS month. */
   startOfMonth(): NepaliDate {
-    return new NepaliDate(this.#year, this.#month, 1);
+    return new NepaliDate(
+      this.#year,
+      this.#month,
+      1,
+      0,
+      0,
+      0,
+      0,
+      this.#locale,
+    );
   }
   /** Returns a new instance at the last day of this BS month. */
   endOfMonth(): NepaliDate {
@@ -450,16 +552,30 @@ export class NepaliDate {
       this.#year,
       this.#month,
       daysInBsMonth(this.#year, this.#month),
+      0,
+      0,
+      0,
+      0,
+      this.#locale,
     );
   }
   /** Returns a new instance at the first day of this BS year (Baishakh 1). */
   startOfYear(): NepaliDate {
-    return new NepaliDate(this.#year, 1, 1);
+    return new NepaliDate(this.#year, 1, 1, 0, 0, 0, 0, this.#locale);
   }
   /** Returns a new instance at the last day of this BS year (Chaitra last). */
   endOfYear(): NepaliDate {
     const total = BS_YEAR_DATA[this.#year]!;
-    return new NepaliDate(this.#year, 12, total[11]!);
+    return new NepaliDate(
+      this.#year,
+      12,
+      total[11]!,
+      0,
+      0,
+      0,
+      0,
+      this.#locale,
+    );
   }
 
   // ---------- Setters (immutable; returns NEW instance) ----------
@@ -480,6 +596,7 @@ export class NepaliDate {
       this.#minute,
       this.#second,
       this.#millisecond,
+      this.#locale,
     );
   }
 
@@ -497,6 +614,7 @@ export class NepaliDate {
       this.#minute,
       this.#second,
       this.#millisecond,
+      this.#locale,
     );
   }
 
@@ -510,6 +628,7 @@ export class NepaliDate {
       this.#minute,
       this.#second,
       this.#millisecond,
+      this.#locale,
     );
   }
 
@@ -558,6 +677,7 @@ export class NepaliDate {
       this.#minute,
       this.#second,
       this.#millisecond,
+      this.#locale,
     );
   }
 
@@ -574,6 +694,7 @@ export class NepaliDate {
       minutes,
       this.#second,
       this.#millisecond,
+      this.#locale,
     );
   }
 
@@ -590,6 +711,7 @@ export class NepaliDate {
       this.#minute,
       seconds,
       this.#millisecond,
+      this.#locale,
     );
   }
 
@@ -606,6 +728,7 @@ export class NepaliDate {
       this.#minute,
       this.#second,
       ms,
+      this.#locale,
     );
   }
 
@@ -614,7 +737,7 @@ export class NepaliDate {
   /** Signed difference in whole days: `this - other`. */
   diffDays(other: NepaliDate): number {
     return Math.round(
-      (this.toJsDate().getTime() - other.toJsDate().getTime()) / MS_PER_DAY,
+      (this.toJsDateUTC().getTime() - other.toJsDateUTC().getTime()) / MS_PER_DAY,
     );
   }
   /** Signed whole days, `this − other`. Alias of {@link diffDays}. */
@@ -639,7 +762,7 @@ export class NepaliDate {
   }
   /** Signed milliseconds, `this − other`. */
   differenceInMilliseconds(other: NepaliDate): number {
-    return this.toJsDate().getTime() - other.toJsDate().getTime();
+    return this.toJsDateUTC().getTime() - other.toJsDateUTC().getTime();
   }
   /** Calendar-day difference, ignoring time-of-day. */
   differenceInCalendarDays(other: NepaliDate): number {
@@ -671,11 +794,11 @@ export class NepaliDate {
   }
   /** True if `this` precedes `other` (date+time). */
   isBefore(other: NepaliDate): boolean {
-    return this.toJsDate().getTime() < other.toJsDate().getTime();
+    return this.toJsDateUTC().getTime() < other.toJsDateUTC().getTime();
   }
   /** True if `this` follows `other` (date+time). */
   isAfter(other: NepaliDate): boolean {
-    return this.toJsDate().getTime() > other.toJsDate().getTime();
+    return this.toJsDateUTC().getTime() > other.toJsDateUTC().getTime();
   }
   /** True if both BS dates (ignoring time) are the same calendar day. */
   isSameDay(other: NepaliDate): boolean {
@@ -713,7 +836,16 @@ export class NepaliDate {
 
   /** Returns a new instance at 00:00:00.000 on the same calendar day. */
   startOfDay(): NepaliDate {
-    return new NepaliDate(this.#year, this.#month, this.#day);
+    return new NepaliDate(
+      this.#year,
+      this.#month,
+      this.#day,
+      0,
+      0,
+      0,
+      0,
+      this.#locale,
+    );
   }
   /** Returns a new instance at 23:59:59.999 on the same calendar day. */
   endOfDay(): NepaliDate {
@@ -725,6 +857,7 @@ export class NepaliDate {
       59,
       59,
       999,
+      this.#locale,
     );
   }
   /**
@@ -760,12 +893,30 @@ export class NepaliDate {
   }
   /** Returns a new instance at Shrawan 1 of this date's fiscal year. */
   startOfFiscalYear(): NepaliDate {
-    return new NepaliDate(this.getFiscalYear(), 4, 1);
+    return new NepaliDate(
+      this.getFiscalYear(),
+      4,
+      1,
+      0,
+      0,
+      0,
+      0,
+      this.#locale,
+    );
   }
   /** Returns a new instance at the last day of Ashad of this date's fiscal year. */
   endOfFiscalYear(): NepaliDate {
     const fy = this.getFiscalYear();
-    return new NepaliDate(fy + 1, 3, daysInBsMonth(fy + 1, 3));
+    return new NepaliDate(
+      fy + 1,
+      3,
+      daysInBsMonth(fy + 1, 3),
+      0,
+      0,
+      0,
+      0,
+      this.#locale,
+    );
   }
 
   // ---------- JSON / debug ----------
@@ -775,7 +926,7 @@ export class NepaliDate {
     return {
       bs: this.toBs(),
       ad: this.toAd(),
-      iso: this.toJsDate().toISOString(),
+      iso: this.toJsDateUTC().toISOString(),
     };
   }
 }

@@ -54,6 +54,7 @@ export {
   ANCHOR_AD_MONTH,
   ANCHOR_AD_YEAR,
   BS_YEAR_DATA,
+  BS_YEAR_TOTALS,
   daysInBsMonth,
   daysInBsYear,
   FIRST_BS_YEAR,
@@ -81,6 +82,18 @@ export {
 // ---------- Formatting & parsing ----------
 export { type FormatOptions, formatBs } from "./format.js";
 export { parseBs } from "./parse.js";
+
+// ---------- Locale ----------
+export {
+  getGlobalLocale,
+  getLocale,
+  hasLocale,
+  type Locale,
+  type LocaleRelativeTime,
+  listLocales,
+  registerLocale,
+  setGlobalLocale,
+} from "./locale.js";
 
 // ---------- The class ----------
 export { NepaliDate } from "./nepali-date.js";
@@ -205,15 +218,13 @@ export {
   startOfFiscalYear,
 } from "./fiscal.js";
 
-// ---------- Distance / relative (separate functions per language; no options) ----------
+// ---------- Distance / relative (locale-driven) ----------
 export {
   type DateInput,
+  type DistanceOptions,
   formatDistance,
-  formatDistanceNepali,
   formatDistanceToNow,
-  formatDistanceToNowNepali,
   formatRelative,
-  formatRelativeNepali,
   toNepaliDate,
 } from "./distance.js";
 

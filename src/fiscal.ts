@@ -11,8 +11,13 @@
  * formatFiscalYear(2081)                          // "2081/82"
  */
 
-import { NepaliDate } from "./nepali-date.js";
 import { daysInBsMonth } from "./data.js";
+import {
+  getLocale,
+  type Locale,
+  resolveGlobalLocale,
+} from "./locale.js";
+import { NepaliDate } from "./nepali-date.js";
 
 /** Month number where the Nepali fiscal year starts (Shrawan = 4). */
 export const FISCAL_YEAR_START_MONTH = 4;
@@ -37,27 +42,27 @@ export function endOfFiscalYear(fy: number): NepaliDate {
 
 /**
  * Format a fiscal year as `"YYYY/YY"` (e.g. `2081 → "2081/82"`).
- * Pass `nepali: true` to render in Devanagari digits.
+ *
+ * Digits follow the active locale: ASCII for `"en"`, Devanagari for `"ne"`.
+ * Defaults to the global locale set via `NepaliDate.locale(...)`.
+ *
+ * @example
+ * formatFiscalYear(2081)                       // "2081/82"
+ * formatFiscalYear(2081, { locale: "ne" })     // "२०८१/८२"
  */
 export function formatFiscalYear(
   fy: number,
-  options: { nepali?: boolean } = {},
+  options: { locale?: string | Locale } = {},
 ): string {
   const next = (fy + 1) % 100;
   const right = next < 10 ? `0${next}` : String(next);
   const out = `${fy}/${right}`;
-  if (options.nepali) {
-    let np = "";
-    for (const ch of out) {
-      const c = ch.charCodeAt(0);
-      np +=
-        c >= 48 && c <= 57
-          ? "०१२३४५६७८९".charAt(c - 48)
-          : ch;
-    }
-    return np;
-  }
-  return out;
+  const loc = options.locale === undefined
+    ? resolveGlobalLocale()
+    : typeof options.locale === "string"
+      ? getLocale(options.locale)
+      : options.locale;
+  return loc.digits(out);
 }
 
 /** Quarter (1..4) within the fiscal year that `date` belongs to. */

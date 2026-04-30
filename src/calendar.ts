@@ -40,16 +40,13 @@
  */
 
 import {
-  BS_MONTH_NAMES,
   BS_MONTH_NAMES_NP,
   toDevanagariDigits,
   WEEKDAY_NAMES,
-  WEEKDAY_NAMES_MIN,
   WEEKDAY_NAMES_NP,
-  WEEKDAY_NAMES_NP_SHORT,
-  WEEKDAY_NAMES_SHORT,
 } from "./constants.js";
 import { daysInBsMonth } from "./data.js";
+import { getLocale, type Locale, resolveGlobalLocale } from "./locale.js";
 import { NepaliDate } from "./nepali-date.js";
 import type { AdDate, BsDate } from "./types.js";
 
@@ -170,9 +167,13 @@ export interface CalendarMonthOptions {
    */
   weekendDays?: readonly number[];
   /**
-   * `"en"` (default) or `"ne"` for Devanagari weekday headers.
+   * Locale name (`"en"`, `"ne"`, or any registered custom locale) controlling
+   * `monthName`, `monthNameNepali`, and `weekdayHeaders*`. Defaults to the
+   * global locale set via `NepaliDate.locale(...)`.
+   *
+   * You can also pass a `Locale` object directly.
    */
-  locale?: "en" | "ne";
+  locale?: string | Locale;
 }
 
 /**
@@ -204,7 +205,11 @@ export function getCalendarMonth(
   const padding = options.padding ?? true;
   const today = options.today ?? NepaliDate.now();
   const weekendDays = options.weekendDays ?? [6];
-  const ne = options.locale === "ne";
+  const loc: Locale = options.locale === undefined
+    ? resolveGlobalLocale()
+    : typeof options.locale === "string"
+      ? getLocale(options.locale)
+      : options.locale;
 
   if (weekStartsOn < 0 || weekStartsOn > 6 || !Number.isInteger(weekStartsOn)) {
     throw new RangeError("weekStartsOn must be integer 0..6");
@@ -268,21 +273,15 @@ export function getCalendarMonth(
     for (let i = 0; i < 7; i++) out.push(full[(weekStartsOn + i) % 7]!);
     return out;
   };
-  const weekdayHeaders = ne
-    ? orderedHeader(WEEKDAY_NAMES_NP)
-    : orderedHeader(WEEKDAY_NAMES);
-  const weekdayHeadersShort = ne
-    ? orderedHeader(WEEKDAY_NAMES_NP_SHORT)
-    : orderedHeader(WEEKDAY_NAMES_SHORT);
-  const weekdayHeadersMin = ne
-    ? orderedHeader(WEEKDAY_NAMES_NP_SHORT)
-    : orderedHeader(WEEKDAY_NAMES_MIN);
+  const weekdayHeaders = orderedHeader(loc.weekdays);
+  const weekdayHeadersShort = orderedHeader(loc.weekdaysShort);
+  const weekdayHeadersMin = orderedHeader(loc.weekdaysMin);
 
   return {
     year,
     yearNepali: toDevanagariDigits(year),
     month,
-    monthName: BS_MONTH_NAMES[month - 1]!,
+    monthName: loc.months[month - 1]!,
     monthNameNepali: BS_MONTH_NAMES_NP[month - 1]!,
     daysInMonth: dim,
     firstDay,

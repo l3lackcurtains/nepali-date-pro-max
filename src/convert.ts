@@ -13,6 +13,7 @@ import {
   ANCHOR_AD_YEAR,
   ANCHOR_WEEKDAY,
   BS_YEAR_DATA,
+  BS_YEAR_TOTALS,
   FIRST_BS_YEAR,
   LAST_BS_YEAR,
   daysInBsMonth,
@@ -45,7 +46,7 @@ function bsToDayIndex(year: number, month: number, day: number): number {
 
   let total = 0;
   for (let y = FIRST_BS_YEAR; y < year; y++) {
-    total += BS_YEAR_DATA[y]![12]!;
+    total += BS_YEAR_TOTALS[y]!;
   }
   for (let m = 1; m < month; m++) {
     total += BS_YEAR_DATA[year]![m - 1]!;
@@ -67,7 +68,7 @@ function dayIndexToBs(days: number): BsDate {
   let remaining = days;
   let year = FIRST_BS_YEAR;
   while (year <= LAST_BS_YEAR) {
-    const total = BS_YEAR_DATA[year]![12]!;
+    const total = BS_YEAR_TOTALS[year]!;
     if (remaining < total) break;
     remaining -= total;
     year++;

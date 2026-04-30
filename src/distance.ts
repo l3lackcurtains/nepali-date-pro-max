@@ -1,16 +1,14 @@
 /**
- * Human-readable distance formatters — date-fns style.
+ * Human-readable distance formatters — locale-driven.
  *
- * Pick a function based on what you want; no options to configure.
+ * Three functions, each accepts an optional `{ locale }` (defaults to the
+ * global locale set via `NepaliDate.locale(...)`).
  *
- * | Function                       | Suffix? | Output language |
- * |--------------------------------|---------|-----------------|
- * | `formatDistance(a, b)`         | no      | English         |
- * | `formatDistanceNepali(a, b)`   | no      | Nepali (नेपाली) |
- * | `formatDistanceToNow(x)`       | yes     | English         |
- * | `formatDistanceToNowNepali(x)` | yes     | Nepali          |
- * | `formatRelative(x, base?)`     | (smart) | English         |
- * | `formatRelativeNepali(x, b?)`  | (smart) | Nepali          |
+ * | Function                          | Suffix? | Example (en)        | Example (ne)      |
+ * |-----------------------------------|---------|---------------------|-------------------|
+ * | `formatDistance(a, b)`            | no      | `"7 days"`          | `"७ दिन"`        |
+ * | `formatDistanceToNow(x)`          | yes     | `"5 minutes ago"`   | `"५ मिनेट अघि"` |
+ * | `formatRelative(x, base?)`        | (smart) | `"yesterday"`       | `"हिजो"`         |
  *
  * **Polymorphic inputs.** Every argument accepts:
  *  - `NepaliDate` instance
@@ -23,15 +21,30 @@
  */
 
 import { isSameDay, isTomorrow, isYesterday } from "./comparisons.js";
-import { toDevanagariDigits } from "./constants.js";
 import {
   differenceInCalendarDays,
   differenceInMilliseconds,
 } from "./diff.js";
+import {
+  getLocale,
+  type Locale,
+  type LocaleRelativeTime,
+  resolveGlobalLocale,
+  resolveRelativeTime,
+} from "./locale.js";
 import { NepaliDate } from "./nepali-date.js";
 
 /** Anything the distance/relative functions can accept. */
 export type DateInput = NepaliDate | Date | number | string;
+
+/** Options for distance/relative formatters. */
+export interface DistanceOptions {
+  /**
+   * Locale name (`"en"`, `"ne"`, …) or a `Locale` object. Defaults to the
+   * global locale set via `NepaliDate.locale(...)`.
+   */
+  locale?: string | Locale;
+}
 
 /**
  * Coerce any supported input into a `NepaliDate`. Exported for power users
@@ -65,75 +78,21 @@ export function toNepaliDate(input: DateInput): NepaliDate {
   );
 }
 
-// ---------- internal language strings ----------
-
-interface Phrasebook {
-  lessThanMinute: string;
-  minute(n: number): string;
-  aboutHour(n: number): string;
-  aboutDay(n: number): string;
-  day(n: number): string;
-  aboutMonth(n: number): string;
-  month(n: number): string;
-  aboutYear(n: number): string;
-  almostYear(n: number): string;
-  overYear(n: number): string;
-  year(n: number): string;
-  ago(s: string): string;
-  in(s: string): string;
-  today: string;
-  yesterday: string;
-  tomorrow: string;
-  inNDays(n: number): string;
-  nDaysAgo(n: number): string;
+function resolveLocale(options: DistanceOptions | undefined): Locale {
+  if (!options || options.locale === undefined) return resolveGlobalLocale();
+  return typeof options.locale === "string"
+    ? getLocale(options.locale)
+    : options.locale;
 }
-
-const EN: Phrasebook = {
-  lessThanMinute: "less than a minute",
-  minute: (n) => `${n} minute${n === 1 ? "" : "s"}`,
-  aboutHour: (n) => `about ${n} hour${n === 1 ? "" : "s"}`,
-  aboutDay: (n) => `about ${n} day${n === 1 ? "" : "s"}`,
-  day: (n) => `${n} day${n === 1 ? "" : "s"}`,
-  aboutMonth: (n) => `about ${n} month${n === 1 ? "" : "s"}`,
-  month: (n) => `${n} month${n === 1 ? "" : "s"}`,
-  aboutYear: (n) => `about ${n} year${n === 1 ? "" : "s"}`,
-  almostYear: (n) => `almost ${n} year${n === 1 ? "" : "s"}`,
-  overYear: (n) => `over ${n} year${n === 1 ? "" : "s"}`,
-  year: (n) => `${n} year${n === 1 ? "" : "s"}`,
-  ago: (s) => `${s} ago`,
-  in: (s) => `in ${s}`,
-  today: "today",
-  yesterday: "yesterday",
-  tomorrow: "tomorrow",
-  inNDays: (n) => `in ${n} days`,
-  nDaysAgo: (n) => `${n} days ago`,
-};
-
-const NE: Phrasebook = {
-  lessThanMinute: "एक मिनेटभन्दा कम",
-  minute: (n) => `${toDevanagariDigits(n)} मिनेट`,
-  aboutHour: (n) => `लगभग ${toDevanagariDigits(n)} घण्टा`,
-  aboutDay: (n) => `लगभग ${toDevanagariDigits(n)} दिन`,
-  day: (n) => `${toDevanagariDigits(n)} दिन`,
-  aboutMonth: (n) => `लगभग ${toDevanagariDigits(n)} महिना`,
-  month: (n) => `${toDevanagariDigits(n)} महिना`,
-  aboutYear: (n) => `लगभग ${toDevanagariDigits(n)} वर्ष`,
-  almostYear: (n) => `झण्डै ${toDevanagariDigits(n)} वर्ष`,
-  overYear: (n) => `${toDevanagariDigits(n)} वर्षभन्दा बढी`,
-  year: (n) => `${toDevanagariDigits(n)} वर्ष`,
-  ago: (s) => `${s} अघि`,
-  in: (s) => `${s} पछि`,
-  today: "आज",
-  yesterday: "हिजो",
-  tomorrow: "भोलि",
-  inNDays: (n) => `${toDevanagariDigits(n)} दिनमा`,
-  nDaysAgo: (n) => `${toDevanagariDigits(n)} दिन अघि`,
-};
 
 // ---------- internal core ----------
 
 /** Returns the bare duration phrase (no suffix) for `|a − b|`. */
-function distanceCore(a: NepaliDate, b: NepaliDate, S: Phrasebook): string {
+function distanceCore(
+  a: NepaliDate,
+  b: NepaliDate,
+  S: LocaleRelativeTime,
+): string {
   const abs = Math.abs(differenceInMilliseconds(a, b));
 
   const minutes = Math.round(abs / 60_000);
@@ -160,13 +119,18 @@ function distanceCore(a: NepaliDate, b: NepaliDate, S: Phrasebook): string {
 function distanceWithSuffix(
   a: NepaliDate,
   b: NepaliDate,
-  S: Phrasebook,
+  S: LocaleRelativeTime,
 ): string {
   const core = distanceCore(a, b, S);
   return differenceInMilliseconds(a, b) > 0 ? S.in(core) : S.ago(core);
 }
 
-function relativeCore(d: NepaliDate, base: NepaliDate, S: Phrasebook): string {
+function relativeCore(
+  d: NepaliDate,
+  base: NepaliDate,
+  loc: Locale,
+): string {
+  const S = resolveRelativeTime(loc);
   if (isSameDay(d, base)) return S.today;
   if (isYesterday(d) && base.isSameDay(NepaliDate.now())) return S.yesterday;
   if (isTomorrow(d) && base.isSameDay(NepaliDate.now())) return S.tomorrow;
@@ -174,7 +138,7 @@ function relativeCore(d: NepaliDate, base: NepaliDate, S: Phrasebook): string {
   const days = differenceInCalendarDays(d, base);
   if (days > 0 && days <= 7) return S.inNDays(days);
   if (days < 0 && days >= -7) return S.nDaysAgo(-days);
-  return d.format("YYYY-MM-DD", { nepali: S === NE });
+  return d.format("YYYY-MM-DD", { locale: loc });
 }
 
 // ============================================================
@@ -182,77 +146,62 @@ function relativeCore(d: NepaliDate, base: NepaliDate, S: Phrasebook): string {
 // ============================================================
 
 /**
- * Plain-duration English distance between two moments. **No suffix.**
+ * Plain-duration distance between two moments in the active locale. **No suffix.**
  *
  * @example
- * formatDistance("2024-04-13", "2024-04-20")      // "7 days"
- * formatDistance(Date.now() - 5 * 60_000, Date.now()) // "5 minutes"
+ * formatDistance("2024-04-13", "2024-04-20")              // "7 days"
+ * formatDistance("2024-04-13", "2024-04-20", { locale: "ne" }) // "७ दिन"
  */
-export function formatDistance(a: DateInput, b: DateInput): string {
-  return distanceCore(toNepaliDate(a), toNepaliDate(b), EN);
+export function formatDistance(
+  a: DateInput,
+  b: DateInput,
+  options?: DistanceOptions,
+): string {
+  return distanceCore(
+    toNepaliDate(a),
+    toNepaliDate(b),
+    resolveRelativeTime(resolveLocale(options)),
+  );
 }
 
 /**
- * Plain-duration Nepali (Devanagari) distance between two moments. **No suffix.**
+ * Time-ago / time-until vs. now in the active locale. **Always includes a
+ * past/future suffix** (`"ago"` / `"in …"` for `"en"`, `"अघि"` / `"पछि"` for `"ne"`).
+ *
+ * Equivalent to dayjs's `dayjs(x).fromNow()` / `.toNow()`.
  *
  * @example
- * formatDistanceNepali("2024-04-13", "2024-04-20") // "७ दिन"
+ * formatDistanceToNow(post.createdAt)                       // "5 minutes ago"
+ * formatDistanceToNow(Date.now() + 86_400_000, { locale: "ne" }) // "१ दिन पछि"
  */
-export function formatDistanceNepali(a: DateInput, b: DateInput): string {
-  return distanceCore(toNepaliDate(a), toNepaliDate(b), NE);
+export function formatDistanceToNow(
+  input: DateInput,
+  options?: DistanceOptions,
+): string {
+  return distanceWithSuffix(
+    toNepaliDate(input),
+    NepaliDate.now(),
+    resolveRelativeTime(resolveLocale(options)),
+  );
 }
 
 /**
- * English time-ago / time-until vs. now. **Always includes "ago" or "in" suffix.**
- *
- * The dayjs equivalent of `dayjs(x).fromNow()` (and `.toNow()` for future dates).
- *
- * @example
- * formatDistanceToNow(post.createdAt)              // "5 minutes ago"
- * formatDistanceToNow(new Date("2024-04-13"))      // "2 years ago"
- * formatDistanceToNow(Date.now() + 86_400_000)     // "in 1 day"
- */
-export function formatDistanceToNow(input: DateInput): string {
-  return distanceWithSuffix(toNepaliDate(input), NepaliDate.now(), EN);
-}
-
-/**
- * Nepali (Devanagari) time-ago / time-until vs. now. **Always includes
- * "अघि" or "पछि" suffix.**
+ * Smart relative phrasing in the active locale: `"yesterday"`, `"today"`,
+ * `"tomorrow"`, `"in N days"`, `"N days ago"`, falling back to a date string
+ * for distant dates.
  *
  * @example
- * formatDistanceToNowNepali(Date.now() - 5 * 60_000) // "५ मिनेट अघि"
- * formatDistanceToNowNepali(Date.now() + 86_400_000) // "१ दिन पछि"
- */
-export function formatDistanceToNowNepali(input: DateInput): string {
-  return distanceWithSuffix(toNepaliDate(input), NepaliDate.now(), NE);
-}
-
-/**
- * Smart relative phrasing in English: `"yesterday"`, `"today"`, `"tomorrow"`,
- * `"in N days"`, `"N days ago"`, falling back to a date string for distant dates.
- *
- * @example
- * formatRelative(Date.now() - 86_400_000)   // "yesterday"
- * formatRelative(Date.now() + 3 * 86_400_000) // "in 3 days"
+ * formatRelative(Date.now() - 86_400_000)                       // "yesterday"
+ * formatRelative(Date.now() + 3 * 86_400_000, undefined, { locale: "ne" }) // "३ दिनमा"
  */
 export function formatRelative(
   date: DateInput,
   base: DateInput = NepaliDate.now(),
+  options?: DistanceOptions,
 ): string {
-  return relativeCore(toNepaliDate(date), toNepaliDate(base), EN);
-}
-
-/**
- * Smart relative phrasing in Nepali (Devanagari).
- *
- * @example
- * formatRelativeNepali(Date.now() - 86_400_000)   // "हिजो"
- * formatRelativeNepali(Date.now() + 3 * 86_400_000) // "३ दिनमा"
- */
-export function formatRelativeNepali(
-  date: DateInput,
-  base: DateInput = NepaliDate.now(),
-): string {
-  return relativeCore(toNepaliDate(date), toNepaliDate(base), NE);
+  return relativeCore(
+    toNepaliDate(date),
+    toNepaliDate(base),
+    resolveLocale(options),
+  );
 }

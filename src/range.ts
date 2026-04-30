@@ -27,7 +27,7 @@
  *
  * @example
  * // Devanagari output:
- * eachBsDayInAdRange(start, end, { format: "YYYY-MM-DD", nepali: true })
+ * eachBsDayInAdRange(start, end, { format: "YYYY-MM-DD", locale: "ne" })
  * // → ["२०८१-०१-०१", …]
  */
 
@@ -110,8 +110,8 @@ export function convertAdRangeToBs(
   const bsB = adToBs(b.year, b.month, b.day);
   if (options.format) {
     return {
-      start: formatBs(bsA, options.format, { nepali: options.nepali }),
-      end: formatBs(bsB, options.format, { nepali: options.nepali }),
+      start: formatBs(bsA, options.format, { locale: options.locale }),
+      end: formatBs(bsB, options.format, { locale: options.locale }),
     };
   }
   return { start: bsA, end: bsB };
@@ -160,7 +160,7 @@ export function eachBsDayInAdRange(
     const bs = adToBs(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate());
     out.push(
       options.format
-        ? formatBs(bs, options.format, { nepali: options.nepali })
+        ? formatBs(bs, options.format, { locale: options.locale })
         : bs,
     );
   }
@@ -197,7 +197,7 @@ export function eachBsMonthInAdRange(
     const bs = cur.toBs();
     out.push(
       options.format
-        ? formatBs(bs, options.format, { nepali: options.nepali })
+        ? formatBs(bs, options.format, { locale: options.locale })
         : bs,
     );
     cur = cur.addMonths(sign);

@@ -36,18 +36,16 @@ export interface NepaliDateDetails {
   ad: AdDate;
   /** 0=Sunday, 1=Monday, …, 6=Saturday */
   weekday: number;
-  /** English weekday name (e.g. "Sunday"). */
+  /** Weekday name in the active locale (e.g. `"Saturday"` / `"शनिबार"`). */
   weekdayName: string;
-  /** Nepali weekday name in Devanagari (e.g. "आइतबार"). */
-  weekdayNameNepali: string;
-  /** English month name in Roman (e.g. "Baishakh"). */
+  /** Month name in the active locale (e.g. `"Baishakh"` / `"बैशाख"`). */
   monthName: string;
-  /** Nepali month name in Devanagari (e.g. "बैशाख"). */
-  monthNameNepali: string;
   /** Day-of-year in BS (1-indexed). */
   dayOfYear: number;
   /** Total days in this BS year. */
   daysInYear: number;
   /** Total days in this BS month. */
   daysInMonth: number;
+  /** Locale used to render `weekdayName` and `monthName`. */
+  locale: string;
 }

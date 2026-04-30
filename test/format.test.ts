@@ -33,14 +33,14 @@ describe("formatBs", () => {
     expect(formatBs(date, "[year:] YYYY")).toBe("year: 2081");
   });
 
-  it("renders Nepali (Devanagari) output", () => {
-    expect(formatBs(date, "YYYY-MM-DD", { nepali: true })).toBe(
+  it("renders Nepali (Devanagari) output via locale: 'ne'", () => {
+    expect(formatBs(date, "YYYY-MM-DD", { locale: "ne" })).toBe(
       "२०८१-०१-०१",
     );
-    expect(formatBs(date, "DD MMMM YYYY", { nepali: true })).toBe(
+    expect(formatBs(date, "DD MMMM YYYY", { locale: "ne" })).toBe(
       "०१ बैशाख २०८१",
     );
-    expect(formatBs(date, "dddd", { nepali: true })).toBe("शनिबार");
+    expect(formatBs(date, "dddd", { locale: "ne" })).toBe("शनिबार");
   });
 });
 

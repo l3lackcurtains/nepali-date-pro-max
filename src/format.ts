@@ -5,15 +5,15 @@
  *
  *   YYYY   — 4-digit BS year                  e.g. 2081
  *   YY     — 2-digit BS year                  e.g. 81
- *   MMMM   — Full Roman month name            e.g. Baishakh
- *   MMM    — Short Roman month name           e.g. Bai
+ *   MMMM   — Full month name (locale)         e.g. Baishakh / बैशाख
+ *   MMM    — Short month name (locale)        e.g. Bai / बैशाख
  *   MM     — 2-digit month                    e.g. 01
  *   M      — Month, no padding                e.g. 1
  *   DD     — 2-digit day of month             e.g. 05
  *   D      — Day of month, no padding         e.g. 5
- *   dddd   — Full Roman weekday               e.g. Saturday
- *   ddd    — Short Roman weekday              e.g. Sat
- *   dd     — Min Roman weekday                e.g. Sa
+ *   dddd   — Full weekday (locale)            e.g. Saturday / शनिबार
+ *   ddd    — Short weekday (locale)           e.g. Sat / शनि
+ *   dd     — Min weekday (locale)             e.g. Sa / शनि
  *   HH     — 2-digit 24h hour                 e.g. 09
  *   H      — 24h hour, no padding             e.g. 9
  *   hh     — 2-digit 12h hour                 e.g. 09
@@ -25,33 +25,29 @@
  *   A      — AM/PM
  *   a      — am/pm
  *
- * For Nepali (Devanagari) output, append `{ nepali: true }` to use Devanagari
- * digits and Devanagari month/weekday names.
+ * Localisation is driven by the active {@link Locale}: pass `{ locale: "ne" }`
+ * for Devanagari output (digits + month/weekday names), or set
+ * `NepaliDate.locale("ne")` once at app boot to make it the default.
  *
  * Use square brackets to escape literal text: `"[year] YYYY"` → `"year 2081"`.
  */
 
-import {
-  BS_MONTH_NAMES,
-  BS_MONTH_NAMES_NP,
-  BS_MONTH_NAMES_SHORT,
-  WEEKDAY_NAMES,
-  WEEKDAY_NAMES_MIN,
-  WEEKDAY_NAMES_NP,
-  WEEKDAY_NAMES_NP_SHORT,
-  WEEKDAY_NAMES_SHORT,
-  toDevanagariDigits,
-} from "./constants.js";
 import { bsWeekday } from "./convert.js";
+import {
+  getLocale,
+  type Locale,
+  resolveGlobalLocale,
+} from "./locale.js";
 import type { BsDateTime } from "./types.js";
 
 /** Options for {@link formatBs}. */
 export interface FormatOptions {
   /**
-   * When true, render digits in Devanagari and use Nepali month/weekday names.
-   * Default: false.
+   * Locale name (e.g. `"en"`, `"ne"`) or a `Locale` object. Defaults to the
+   * global locale set via `NepaliDate.locale(...)` (which itself defaults to
+   * `"en"`).
    */
-  nepali?: boolean;
+  locale?: string | Locale;
 }
 
 const TOKEN_RE =
@@ -59,6 +55,15 @@ const TOKEN_RE =
 
 function pad2(n: number): string {
   return n < 10 ? `0${n}` : String(n);
+}
+
+function resolveLocale(options: FormatOptions): Locale {
+  if (options.locale) {
+    return typeof options.locale === "string"
+      ? getLocale(options.locale)
+      : options.locale;
+  }
+  return resolveGlobalLocale();
 }
 
 /**
@@ -71,7 +76,7 @@ function pad2(n: number): string {
  * formatBs({ year: 2081, month: 1, day: 1 }, "DD MMMM, YYYY (dddd)")
  * // → "01 Baishakh, 2081 (Saturday)"
  *
- * formatBs({ year: 2081, month: 1, day: 1 }, "DD MMMM YYYY", { nepali: true })
+ * formatBs({ year: 2081, month: 1, day: 1 }, "DD MMMM YYYY", { locale: "ne" })
  * // → "०१ बैशाख २०८१"
  */
 export function formatBs(
@@ -83,7 +88,8 @@ export function formatBs(
   const hour = date.hour ?? 0;
   const minute = date.minute ?? 0;
   const second = date.second ?? 0;
-  const np = options.nepali === true;
+  const loc = resolveLocale(options);
+  const d = loc.digits;
   const wd = bsWeekday(year, month, day);
   const monthIdx = month - 1;
 
@@ -91,51 +97,47 @@ export function formatBs(
     if (escaped !== undefined) return escaped;
     switch (match) {
       case "YYYY":
-        return np ? toDevanagariDigits(year) : String(year);
-      case "YY": {
-        const yy = year % 100;
-        return np ? toDevanagariDigits(pad2(yy)) : pad2(yy);
-      }
+        return d(year);
+      case "YY":
+        return d(pad2(year % 100));
       case "MMMM":
-        return np ? BS_MONTH_NAMES_NP[monthIdx]! : BS_MONTH_NAMES[monthIdx]!;
+        return loc.months[monthIdx]!;
       case "MMM":
-        return np
-          ? BS_MONTH_NAMES_NP[monthIdx]!
-          : BS_MONTH_NAMES_SHORT[monthIdx]!;
+        return loc.monthsShort[monthIdx]!;
       case "MM":
-        return np ? toDevanagariDigits(pad2(month)) : pad2(month);
+        return d(pad2(month));
       case "M":
-        return np ? toDevanagariDigits(month) : String(month);
+        return d(month);
       case "DD":
-        return np ? toDevanagariDigits(pad2(day)) : pad2(day);
+        return d(pad2(day));
       case "D":
-        return np ? toDevanagariDigits(day) : String(day);
+        return d(day);
       case "dddd":
-        return np ? WEEKDAY_NAMES_NP[wd]! : WEEKDAY_NAMES[wd]!;
+        return loc.weekdays[wd]!;
       case "ddd":
-        return np ? WEEKDAY_NAMES_NP_SHORT[wd]! : WEEKDAY_NAMES_SHORT[wd]!;
+        return loc.weekdaysShort[wd]!;
       case "dd":
-        return np ? WEEKDAY_NAMES_NP_SHORT[wd]! : WEEKDAY_NAMES_MIN[wd]!;
+        return loc.weekdaysMin[wd]!;
       case "HH":
-        return np ? toDevanagariDigits(pad2(hour)) : pad2(hour);
+        return d(pad2(hour));
       case "H":
-        return np ? toDevanagariDigits(hour) : String(hour);
+        return d(hour);
       case "hh": {
         const h12 = hour % 12 === 0 ? 12 : hour % 12;
-        return np ? toDevanagariDigits(pad2(h12)) : pad2(h12);
+        return d(pad2(h12));
       }
       case "h": {
         const h12 = hour % 12 === 0 ? 12 : hour % 12;
-        return np ? toDevanagariDigits(h12) : String(h12);
+        return d(h12);
       }
       case "mm":
-        return np ? toDevanagariDigits(pad2(minute)) : pad2(minute);
+        return d(pad2(minute));
       case "m":
-        return np ? toDevanagariDigits(minute) : String(minute);
+        return d(minute);
       case "ss":
-        return np ? toDevanagariDigits(pad2(second)) : pad2(second);
+        return d(pad2(second));
       case "s":
-        return np ? toDevanagariDigits(second) : String(second);
+        return d(second);
       case "A":
         return hour < 12 ? "AM" : "PM";
       case "a":

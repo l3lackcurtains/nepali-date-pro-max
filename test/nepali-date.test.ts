@@ -42,9 +42,9 @@ describe("NepaliDate accessors", () => {
   it("returns weekday & names", () => {
     expect(d.getDay()).toBe(6); // Saturday
     expect(d.getDayName()).toBe("Saturday");
-    expect(d.getDayNameNepali()).toBe("शनिबार");
+    expect(d.locale("ne").getDayName()).toBe("शनिबार");
     expect(d.getMonthName()).toBe("Baishakh");
-    expect(d.getMonthNameNepali()).toBe("बैशाख");
+    expect(d.locale("ne").getMonthName()).toBe("बैशाख");
   });
 
   it("returns AD conversion", () => {
@@ -282,9 +282,30 @@ describe("NepaliDate format / toJSON", () => {
     expect(d.toString()).toBe("2081-01-01");
   });
 
-  it("format and formatNepali", () => {
+  it("format respects active locale", () => {
     expect(d.format("YYYY-MM-DD HH:mm")).toBe("2081-01-01 14:30");
-    expect(d.formatNepali("YYYY-MM-DD")).toBe("२०८१-०१-०१");
+    expect(d.locale("ne").format("YYYY-MM-DD")).toBe("२०८१-०१-०१");
+  });
+
+  it("toJsDate uses local-time semantics — same calendar day everywhere", () => {
+    // The local Date's calendar fields must match the AD-equivalent BS date,
+    // independent of host timezone (the prior bug was off-by-one west of UTC+5:45).
+    const bs = NepaliDate.fromBs(2081, 1, 1);
+    const ad = bs.toAd();
+    const js = bs.toJsDate();
+    expect(js.getFullYear()).toBe(ad.year);
+    expect(js.getMonth()).toBe(ad.month - 1);
+    expect(js.getDate()).toBe(ad.day);
+  });
+
+  it("toJsDateUTC returns midnight Asia/Kathmandu as a UTC instant", () => {
+    // Midnight Kathmandu (UTC+05:45) is 18:15 UTC the previous day.
+    const bs = NepaliDate.fromBs(2081, 1, 1);
+    const utc = bs.toJsDateUTC();
+    const ad = bs.toAd();
+    const expectedMs =
+      Date.UTC(ad.year, ad.month - 1, ad.day) - ((5 * 60 + 45) * 60 * 1000);
+    expect(utc.getTime()).toBe(expectedMs);
   });
 
   it("toJSON returns bs/ad/iso", () => {

@@ -36,7 +36,7 @@ export function differenceInMilliseconds(
   a: NepaliDate,
   b: NepaliDate,
 ): number {
-  return a.toJsDate().getTime() - b.toJsDate().getTime();
+  return a.toJsDateUTC().getTime() - b.toJsDateUTC().getTime();
 }
 
 /**

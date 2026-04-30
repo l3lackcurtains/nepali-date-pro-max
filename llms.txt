@@ -1,6 +1,6 @@
 # nepali-date-pro-max
 
-> Bikram Sambat (Nepali) ↔ Gregorian (AD) date library for JS/TS. BS year range **1975–2099** (≈ AD 1918–2043). TypeScript-first, dual ESM+CJS, zero dependencies, MIT licensed. Three layers: functional core, immutable `NepaliDate` class, and a complete **date-fns-style** utility surface (100+ helpers). Ships with **calendar-grid builder**, cross-calendar **range conversion**, **fiscal-year** helpers, and **time-ago** helpers (separate functions per language — no locale option) that accept `Date`/`number`/`string`/`NepaliDate`.
+> Bikram Sambat (Nepali) ↔ Gregorian (AD) date library for JS/TS. BS year range **1975–2099** (≈ AD 1918–2043). TypeScript-first, dual ESM+CJS, zero dependencies, MIT licensed. Three layers: functional core, immutable **Day.js-style** `NepaliDate` class with chainable locale switching, and a complete **date-fns-style** utility surface (100+ helpers). Ships with **calendar-grid builder**, cross-calendar **range conversion**, **fiscal-year** helpers, and **locale-driven time-ago / relative-time** helpers that accept `Date`/`number`/`string`/`NepaliDate`. Built-in `"en"` (Roman) and `"ne"` (Devanagari) locales, plus a `registerLocale()` extension point.
 
 This file follows the [llms.txt convention](https://llmstxt.org/) and is structured for AI tools to pick the right symbol on the first try without trial and error.
 
@@ -20,7 +20,8 @@ import { /* ... */ } from "nepali-date-pro-max";
 | Get current Nepal moment | `NepaliDate.now()` |
 | Parse a BS string | `parseBs("2081-01-15")` (also `/`, `.`, Devanagari) |
 | Format a BS date | `formatBs(bs, "YYYY-MM-DD")` or `instance.format(...)` |
-| Render in Devanagari | `formatBs(bs, pattern, { nepali: true })` or `instance.formatNepali(pattern)` |
+| Render in Devanagari | `formatBs(bs, pattern, { locale: "ne" })` or `instance.locale("ne").format(pattern)` |
+| Set the global locale | `NepaliDate.locale("ne")` (affects every later format/calendar/distance call) |
 | **Build a calendar UI grid** | `getCalendarMonth(year, month, options?)` |
 | Build full year of grids | `getCalendarYear(year, options?)` |
 | Single-day cell metadata | `getCalendarDay(date, options?)` |
@@ -29,12 +30,9 @@ import { /* ... */ } from "nepali-date-pro-max";
 | Convert AD range → BS (every month) | `eachBsMonthInAdRange(start, end, { format? })` |
 | Convert BS range → AD (bounds) | `convertBsRangeToAd(start, end, { format? })` |
 | Convert BS range → AD (every day) | `eachAdDayInBsRange(start, end, { format? })` |
-| **English "X ago"** (always with suffix) | `formatDistanceToNow(input)` |
-| **Nepali "X अघि"** (always with suffix) | `formatDistanceToNowNepali(input)` |
-| English duration between two moments (no suffix) | `formatDistance(a, b)` |
-| Nepali duration between two moments (no suffix) | `formatDistanceNepali(a, b)` |
-| English smart relative ("yesterday" / "in 3 days") | `formatRelative(input, base?)` |
-| Nepali smart relative ("हिजो" / "३ दिनमा") | `formatRelativeNepali(input, base?)` |
+| **"X ago"** (always with suffix, locale-driven) | `formatDistanceToNow(input, options?)` — `options.locale` overrides global |
+| **Duration between two moments** (no suffix) | `formatDistance(a, b, options?)` |
+| **Smart relative** ("yesterday" / "हिजो" / "३ दिनमा") | `formatRelative(input, base?, options?)` |
 | Coerce any input → `NepaliDate` | `toNepaliDate(input)` |
 | Add / subtract calendar units | `addDays`, `addMonths`, `addYears`, `addHours`, `addMinutes`, `addSeconds`, `addMilliseconds` (and `subX`) |
 | Set a field (immutably) | `setYear`, `setMonth`, `setDate`, `setDay`, `setDayOfYear`, `setHours`, `setMinutes`, `setSeconds`, `setMilliseconds` |
@@ -160,7 +158,7 @@ interface CalendarMonthOptions {
   padding?: boolean;                // default true
   today?: NepaliDate;               // override "today"
   weekendDays?: readonly number[];  // default [6]
-  locale?: "en" | "ne";             // affects weekdayHeaders
+  locale?: string | Locale;         // overrides global; defaults to NepaliDate.locale()
 }
 
 function getCalendarMonth(year: number, month: number, options?: CalendarMonthOptions): CalendarMonth;
@@ -175,7 +173,7 @@ type AdInput = AdDate | Date;
 
 interface RangeConvertOptions {
   format?: string;                  // if set → returns string[] / { start, end } strings
-  nepali?: boolean;                 // Devanagari output
+  locale?: string | Locale;         // override locale for formatted output (defaults to global)
 }
 
 interface AdRangeFormatOptions {
@@ -194,24 +192,69 @@ function convertBsRangeToAd(start: BsDate, end: BsDate, options?: AdRangeFormatO
 function eachAdDayInBsRange(start: BsDate, end: BsDate, options?: AdRangeFormatOptions): AdDate[] | string[];
 ```
 
-### Distance / relative (separate functions per language — no options)
+### Distance / relative (locale-driven, options-based)
 ```ts
 type DateInput = NepaliDate | Date | number | string;
 
+interface DistanceOptions {
+  locale?: string | Locale;   // defaults to NepaliDate.locale() (global)
+}
+
 // Pure duration — NEVER includes a suffix
-function formatDistance(a: DateInput, b: DateInput): string;          // "5 days"
-function formatDistanceNepali(a: DateInput, b: DateInput): string;    // "५ दिन"
+function formatDistance(a: DateInput, b: DateInput, options?: DistanceOptions): string;
+// "5 days"  /  "५ दिन"
 
 // Time vs. now — ALWAYS includes "ago" / "in" / "अघि" / "पछि" suffix
-function formatDistanceToNow(input: DateInput): string;               // "5 minutes ago" / "in 3 days"
-function formatDistanceToNowNepali(input: DateInput): string;         // "५ मिनेट अघि" / "३ दिन पछि"
+function formatDistanceToNow(input: DateInput, options?: DistanceOptions): string;
+// "5 minutes ago"  /  "५ मिनेट अघि"
 
-// Smart relative phrasing
-function formatRelative(date: DateInput, base?: DateInput): string;       // "yesterday", "in 3 days", "2081-01-01"
-function formatRelativeNepali(date: DateInput, base?: DateInput): string; // "हिजो", "३ दिनमा", …
+// Smart relative phrasing — "yesterday" / "today" / "in N days" / fallback to date
+function formatRelative(date: DateInput, base?: DateInput, options?: DistanceOptions): string;
+// "yesterday" / "हिजो" / "३ दिनमा"
 ```
 
 **Suffix rule.** `formatDistance` is a pure duration; `formatDistanceToNow` always adds `ago`/`in` (or `अघि`/`पछि`) because the comparison is implicitly *to now*.
+
+### Locale (Day.js-style: global default + per-instance/per-call override)
+```ts
+interface LocaleRelativeTime {
+  lessThanMinute: string;
+  minute(n: number): string;
+  aboutHour(n: number): string; aboutDay(n: number): string;
+  day(n: number): string;
+  aboutMonth(n: number): string; month(n: number): string;
+  aboutYear(n: number): string; almostYear(n: number): string;
+  overYear(n: number): string;  year(n: number): string;
+  ago(s: string): string; in(s: string): string;
+  today: string; yesterday: string; tomorrow: string;
+  inNDays(n: number): string; nDaysAgo(n: number): string;
+}
+
+interface Locale {
+  readonly name: string;
+  readonly months: readonly string[];          // 12, 0=Baishakh
+  readonly monthsShort: readonly string[];     // 12
+  readonly weekdays: readonly string[];        // 7, 0=Sunday
+  readonly weekdaysShort: readonly string[];   // 7
+  readonly weekdaysMin: readonly string[];     // 7
+  readonly digits: (input: number | string) => string;
+  readonly relativeTime?: LocaleRelativeTime;  // optional; falls back to "en"
+}
+
+// Built-in: "en" (Roman, ASCII digits) and "ne" (Devanagari).
+function getGlobalLocale(): string;
+function setGlobalLocale(name: string): void;
+function getLocale(name: string): Locale;
+function hasLocale(name: string): boolean;
+function listLocales(): string[];
+function registerLocale(locale: Locale): void;
+
+// On the class — same shape as Day.js:
+NepaliDate.locale();           // → current global name
+NepaliDate.locale("ne");       // set global → returns the new name
+d.locale();                    // → resolved locale on this instance (instance → global → "en")
+d.locale("ne");                // → NEW instance with locale pinned (chainable)
+```
 
 ### Fiscal year
 ```ts
@@ -219,7 +262,7 @@ const FISCAL_YEAR_START_MONTH: 4;   // Shrawan
 function getFiscalYear(date: NepaliDate): number;
 function startOfFiscalYear(fy: number): NepaliDate;
 function endOfFiscalYear(fy: number): NepaliDate;
-function formatFiscalYear(fy: number, options?: { nepali?: boolean }): string;  // "2081/82" or "२०८१/८२"
+function formatFiscalYear(fy: number, options?: { locale?: string | Locale }): string;  // "2081/82" or "२०८१/८२"
 function getFiscalQuarter(date: NepaliDate): number;                            // 1..4
 ```
 
@@ -238,9 +281,15 @@ class NepaliDate {
   getDay(): number;        // 0=Sun..6=Sat
   getDayOfYear(): number;
   getHours(): number; getMinutes(): number; getSeconds(): number; getMilliseconds(): number;
-  getMonthName(): string; getMonthNameNepali(): string;
-  getDayName(): string; getDayNameNepali(): string;
+  getMonthName(): string;        // active locale's name
+  getDayName(): string;          // active locale's name
   daysInMonth(): number; daysInYear(): number;
+
+  // locale (Day.js-style)
+  static locale(): string;
+  static locale(name: string): string;
+  locale(): string;
+  locale(name: string): NepaliDate;
 
   // predicates
   isFirstDayOfMonth(): boolean;
@@ -259,9 +308,8 @@ class NepaliDate {
   toJSON(): { bs: BsDate; ad: AdDate; iso: string };
   getDetails(): NepaliDateDetails;
 
-  // formatting
+  // formatting (uses active locale unless options.locale overrides)
   format(pattern: string, options?: FormatOptions): string;
-  formatNepali(pattern?: string): string;     // default "YYYY-MM-DD"
 
   // arithmetic — returns NEW instance
   addDays(n: number): NepaliDate;
@@ -347,21 +395,29 @@ closestIndexTo(target: NepaliDate, candidates: readonly NepaliDate[]): number | 
 
 ## Common patterns
 
-### Today's date in Nepali
+### Today's date in Nepali (Day.js-style)
 ```ts
 import { NepaliDate } from "nepali-date-pro-max";
-NepaliDate.now().formatNepali("dddd, DD MMMM YYYY");
+
+// Option 1 — set globally once
+NepaliDate.locale("ne");
+NepaliDate.now().format("dddd, DD MMMM YYYY");
 // → "शनिबार, १७ बैशाख २०८३"
+
+// Option 2 — chain per call (no global state change)
+NepaliDate.now().locale("ne").format("dddd, DD MMMM YYYY");
 ```
 
 ### Calendar UI grid (drop straight into JSX)
 ```tsx
 import { getCalendarMonth } from "nepali-date-pro-max";
 
+// Picks up the global locale from NepaliDate.locale(),
+// or pass `{ locale: "ne" }` for a one-off.
 const cal = getCalendarMonth(2081, 1, { locale: "ne" });
 return (
   <>
-    <h2>{cal.monthNameNepali} {cal.yearNepali}</h2>
+    <h2>{cal.monthName} {cal.yearNepali}</h2>
     <div className="grid grid-cols-7">
       {cal.weekdayHeadersShort.map(h => <div key={h}>{h}</div>)}
       {cal.weeks.flatMap(w => w.days).map(c => (
@@ -382,20 +438,22 @@ return (
 );
 ```
 
-### Time-ago — separate functions per language, no options
+### Time-ago — locale-driven
 ```ts
-import {
-  formatDistanceToNow, formatDistanceToNowNepali,
-} from "nepali-date-pro-max";
+import { formatDistanceToNow, NepaliDate } from "nepali-date-pro-max";
 
-// Accepts ms timestamp, JS Date, ISO string, or NepaliDate. No options.
-formatDistanceToNow(post.createdAt);             // "5 minutes ago"
-formatDistanceToNow(new Date("2024-04-13"));     // "2 years ago"
-formatDistanceToNow("2024-04-13T00:00:00Z");     // "2 years ago"
-formatDistanceToNow(Date.now() + 86_400_000);    // "in 1 day"
+// Accepts ms timestamp, JS Date, ISO string, or NepaliDate. Locale defaults
+// to NepaliDate.locale(); pass { locale: "ne" } to override per call.
+formatDistanceToNow(post.createdAt);                            // "5 minutes ago"
+formatDistanceToNow(new Date("2024-04-13"));                    // "2 years ago"
+formatDistanceToNow(Date.now() + 86_400_000);                   // "in 1 day"
 
-formatDistanceToNowNepali(Date.now() - 5 * 60_000);  // "५ मिनेट अघि"
-formatDistanceToNowNepali(Date.now() + 86_400_000);  // "१ दिन पछि"
+formatDistanceToNow(Date.now() - 5 * 60_000, { locale: "ne" }); // "५ मिनेट अघि"
+formatDistanceToNow(Date.now() + 86_400_000, { locale: "ne" }); // "१ दिन पछि"
+
+// Or set the global once and skip the option everywhere:
+NepaliDate.locale("ne");
+formatDistanceToNow(Date.now() - 5 * 60_000);                   // "५ मिनेट अघि"
 ```
 
 ### AD form input → BS strings for backend
@@ -415,7 +473,7 @@ differenceInDays(NepaliDate.fromBs(2081, 12, 30), NepaliDate.now());
 ```ts
 import { NepaliDate, getFiscalYear, formatFiscalYear } from "nepali-date-pro-max";
 const fy = getFiscalYear(NepaliDate.now());
-const label = formatFiscalYear(fy, { nepali: true }); // "२०८३/८४"
+const label = formatFiscalYear(fy, { locale: "ne" }); // "२०८३/८४"
 ```
 
 ### Saturdays in a month
@@ -441,7 +499,8 @@ const saturdays = eachWeekendOfInterval(
 | ❌ `new NepaliDate(...)` with arbitrary args | ✅ Use the static factories (`fromBs`, `fromAd`, `parse`, …) |
 | ❌ Pass a BS string to `formatDistance()` | ✅ Pre-parse with `NepaliDate.parse()`; strings are Gregorian ISO |
 | ❌ Assume a JS `Date` uses local-time fields in range conversion | ✅ Range conversion reads **UTC** fields. For local, pass `{year, month, day}` |
-| ❌ Concatenate Nepali month + ASCII year manually | ✅ Use `formatBs(bs, "DD MMMM YYYY", { nepali: true })` |
+| ❌ Concatenate Nepali month + ASCII year manually | ✅ Use `formatBs(bs, "DD MMMM YYYY", { locale: "ne" })` |
+| ❌ Pass `{ nepali: true }` (removed in 2.0) or call `*Nepali` siblings | ✅ Use `{ locale: "ne" }` or chain `.locale("ne")` |
 | ❌ Compute calendar grids day-by-day | ✅ Use `getCalendarMonth()` — UI-ready data shape with all flags pre-computed |
 
 ---
@@ -482,8 +541,11 @@ Every public symbol exported from `"nepali-date-pro-max"`. Listed verbatim so AI
 ### Parsing & formatting
 `parseBs` · `formatBs`
 
+### Locale
+`Locale` · `LocaleRelativeTime` · `getGlobalLocale` · `setGlobalLocale` · `getLocale` · `hasLocale` · `listLocales` · `registerLocale`
+
 ### `NepaliDate` class
-`NepaliDate` (statics: `now`, `fromBs`, `fromAd`, `fromJsDate`, `parse`)
+`NepaliDate` (statics: `now`, `fromBs`, `fromAd`, `fromJsDate`, `parse`, `locale`)
 
 ### Arithmetic (functional)
 `addDays` · `subDays` · `addMonths` · `subMonths` · `addYears` · `subYears` · `addHours` · `subHours` · `addMinutes` · `subMinutes` · `addSeconds` · `subSeconds` · `addMilliseconds` · `subMilliseconds`
@@ -503,8 +565,8 @@ Every public symbol exported from `"nepali-date-pro-max"`. Listed verbatim so AI
 ### Interval enumerators
 `eachDayOfInterval` · `eachWeekOfInterval` · `eachMonthOfInterval` · `eachYearOfInterval` · `eachWeekendOfInterval`
 
-### Distance / relative (polymorphic inputs)
-`formatDistance` · `formatDistanceNepali` · `formatDistanceToNow` · `formatDistanceToNowNepali` · `formatRelative` · `formatRelativeNepali` · `toNepaliDate`
+### Distance / relative (polymorphic inputs, locale-driven)
+`formatDistance` · `formatDistanceToNow` · `formatRelative` · `toNepaliDate` · `DateInput` · `DistanceOptions`
 
 ### Min / max / clamp
 `min` · `max` · `clamp` · `closestTo` · `closestIndexTo`
@@ -519,7 +581,7 @@ Every public symbol exported from `"nepali-date-pro-max"`. Listed verbatim so AI
 `getFiscalYear` · `startOfFiscalYear` · `endOfFiscalYear` · `formatFiscalYear` · `getFiscalQuarter` · `FISCAL_YEAR_START_MONTH`
 
 ### TypeScript types
-`BsDate` · `AdDate` · `BsDateTime` · `NepaliDateDetails` · `NepaliInterval` · `FormatOptions` · `DateInput` · `CalendarMonth` · `CalendarWeek` · `CalendarDayCell` · `CalendarMonthOptions` · `AdInput` · `RangeConvertOptions` · `AdRangeFormatOptions`
+`BsDate` · `AdDate` · `BsDateTime` · `NepaliDateDetails` · `NepaliInterval` · `FormatOptions` · `DateInput` · `DistanceOptions` · `Locale` · `LocaleRelativeTime` · `CalendarMonth` · `CalendarWeek` · `CalendarDayCell` · `CalendarMonthOptions` · `AdInput` · `RangeConvertOptions` · `AdRangeFormatOptions`
 
 ---
 
@@ -534,9 +596,11 @@ import { convertAdRangeToBs, eachBsDayInAdRange } from "nepali-date-pro-max";
 import { getCalendarMonth, getCalendarDay } from "nepali-date-pro-max";
 import { getFiscalYear, formatFiscalYear } from "nepali-date-pro-max";
 import {
-  formatDistance, formatDistanceNepali,
-  formatDistanceToNow, formatDistanceToNowNepali,
-  formatRelative, formatRelativeNepali,
+  formatDistance, formatDistanceToNow, formatRelative,
+} from "nepali-date-pro-max";
+import {
+  registerLocale, getLocale, setGlobalLocale,
+  type Locale, type LocaleRelativeTime,
 } from "nepali-date-pro-max";
 
 // CommonJS works too:
